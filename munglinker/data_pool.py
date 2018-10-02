@@ -118,6 +118,8 @@ def get_object_pairs(cropobjects,
                                   threshold=max_object_distance,
                                   max_per_object=max_negative_samples)
     poss = positive_example_pairs(cropobjects)
+    logging.info('Object pair extraction: positive: {}, negative: {}'
+                 ''.format(len(poss), len(negs)))
     return negs + poss
 
 
@@ -200,6 +202,11 @@ class PairwiseMungoDataPool:
 
             if m_to.objid in m_from.outlinks:
                 targets[i_entity] = 1
+
+            logging.info('Y: {}\tFROM: {}/{}, TO: {}/{}'
+                         ''.format(int(targets[i_entity]),
+                                   m_from.objid, m_from.clsname,
+                                   m_to.objid, m_to.clsname))
 
         return [patches_batch, targets]
 
@@ -425,16 +432,21 @@ def main(args):
                                          exclude_classes=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
 
     data_pool = PairwiseMungoDataPool(mungs=mungs, images=images)
-
-    X, y = data_pool[0:4]
+    print('Entities after loading data pool: {}'.format(len(data_pool.train_entities)))
 
     import matplotlib.pyplot as plt
-    X0 = X[0]
-    X0_sum = np.sum(X[0], axis=0)
-    print('X0_sum shape: {}'.format(X0_sum.shape))
-    print('X0 sums: {}'.format(X0.sum(axis=1).sum(axis=1)))
-    plt.imshow(X0_sum, cmap='gray', interpolation='nearest')
-    plt.show()
+
+    batch_size = 1
+    n_batches = 10
+    n_positive = 0
+    for k in range(10):
+        X, y = data_pool[k * batch_size:(k + 1) * batch_size]
+        X0_sum = np.sum(X[0], axis=0)
+        plt.imshow(X0_sum, cmap='gray', interpolation='nearest')
+        plt.show()
+        n_positive += y.sum()
+
+    print('Positive example ratio: {}'.format(n_positive / (n_batches * batch_size)))
 
     _end_time = time.clock()
     logging.info('data_pools.py done in {0:.3f} s'.format(_end_time - _start_time))
