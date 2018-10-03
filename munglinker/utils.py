@@ -360,9 +360,31 @@ def select_model(model_path):
     return model
 
 
-
 ##############################################################################
 # Visualizations
+
+
+def plot_batch_patches(X, y, max_items=6):
+    """Shows the current input batch patches; true/false is labeled
+    on the Y axis of each subplot."""
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+    plt.clf()
+
+    n_items = min(X.shape[0], max_items)
+    n_items_per_row = 3
+    n_rows = int(np.ceil(n_items / n_items_per_row))
+
+    for i in range(min(X.shape[0], max_items)):
+        plt.subplot(n_rows, n_items_per_row, i+1)
+        patch = X[i]
+        target = y[i]
+        patch_sum = np.sum(patch, axis=0)
+        plt.ylabel(target)
+        plt.imshow(patch_sum, cmap='gray', interpolation='nearest')
+
+    plt.show()
 
 
 def show_batch_simple(X, y, max_items=3):

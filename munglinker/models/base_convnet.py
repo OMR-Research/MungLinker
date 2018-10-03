@@ -114,124 +114,68 @@ def get_build_model():
 ##############################################################################
 
 
-def prepare_patch_and_target(sheet, spec, midi, o2c):
-    """Takes the batch genreated from the StaffPool and prepares it
-    for the OnsetCounterRNN() model. Currently, the simplest counting
-    setting is used: outputs a batch of (X, y) pairs where X are MIDI
-    matrices and ``y`` are the onset counts.
-
-    Because the o2c onset counts are derived from the sheet, we derive
-    the onset count from the MIDI matrix.
-
-    Note that we expect the data to be lists, since the data points are
-    variable-length sequences.
-
-    If a MIDI matrix has more frames than ``MIDI_MAX_LEN``, it will
-    be squashed to this length (as though the music was sped up).
-
-    :param midi: A list of 3-D midi matrices (single-channel-first).
-
-    :return:
-    """
-    # Prepare output
-    onset_counts = [n_onsets_from_midi_matrix(mm[0]) for mm in midi]
-
-    # Comparing with o2c
-    # print('onset counts: {}'.format(onset_counts))
-    # print('o2c counts:   {}'.format([oc.shape for oc in o2c]))
-    y = np.array(onset_counts)
-
-    # Prepare input
-    batch_size = len(midi)
-    # print('Input MIDI shapes: {}'.format([m.shape for m in midi]))
-    size_normalized_midis = []
-    for m in midi:
-        if m.shape[-1] > MIDI_MAX_LEN:
-            import cv2
-            m_squashed = cv2.resize(src=m[0],
-                                    dsize=(MIDI_MAX_LEN, m.shape[1]),  # cv2 dim order
-                                    interpolation=cv2.INTER_NEAREST)
-            size_normalized_midis.append(m_squashed[np.newaxis, :, :])
-        else:
-            size_normalized_midis.append(m)
-
-    X_batch_lengths = [m.shape[-1] for m in size_normalized_midis]
-    # print('X_batch_lengths = {}'.format(X_batch_lengths))
-    # print('orig midi lengths = {}'.format([m.shape[-1] for m in midi]))
-    # print('resized midi lengths = {}'.format([m.shape[-1] for m in size_normalized_midis]))
-
-    # We'll need to reshape the inputs to (n_channels, n_frames, n_bins),
-    # but this will be done in the RNN part of the CRNN.
-    # (Note that for sheet data, we need to set the background
-    #  to white, or - rather - invert the images!)
-    X_np_data = np.zeros((batch_size, 1, MIDI_N_PITCHES, MIDI_MAX_LEN))
-    for i, m in enumerate(size_normalized_midis):
-        X_np_data[i, 0, :, :X_batch_lengths[i]] = m
-
-    return X_np_data, y
-
-
-
+def prepare_patch_and_target(patch, target):
+    """Does not do anything."""
+    return patch, target
 
 
 ##############################################################################
 # Now we define the usual model module interface.
 
-def prepare_train(sheet, spec, midi, o2c):
-    X, y = prepare_patch_and_target(sheet, spec, midi, o2c)
+def prepare_train(*args, **kwargs):
+    X, y = prepare_patch_and_target(*args, **kwargs)
     return X, y
 
 
-def prepare_valid(sheet, spec, midi, o2c):
-    X, y = prepare_patch_and_target(sheet, spec, midi, o2c)
+def prepare_valid(*args, **kwargs):
+    X, y = prepare_patch_and_target(*args, **kwargs)
     return X, y
 
 
-def prepare_test(sheet, spec, midi, o2c):
-    X, y = prepare_patch_and_target(sheet, spec, midi, o2c)
+def prepare_test(*args, **kwargs):
+    X, y = prepare_patch_and_target(*args, **kwargs)
     return X, y
 
 
-def prepare_runtime(sheet, spec, midi, o2c):
-    X, _ = prepare_patch_and_target(sheet, spec, midi, o2c)
+def prepare_runtime(*args, **kwargs):
+    X, _ = prepare_patch_and_target(*args, **kwargs)
     return X
 
 
 def train_batch_iterator(batch_size=BATCH_SIZE):
     """ Compile batch iterator for training """
-    from msmd.data_pools.batch_iterators import VariableLengthSequencePoolIterator
-    from msmd.data_pools.batch_iterators import MultiviewPoolIteratorUnsupervised
-    batch_iterator = VariableLengthSequencePoolIterator(batch_size=batch_size,
-                                                        prepare=prepare_train,
-                                                        shuffle=True)
+    from munglinker.batch_iterators import PoolIterator
+    batch_iterator = PoolIterator(batch_size=batch_size,
+                                  prepare=prepare_train,
+                                  shuffle=True)
     return batch_iterator
 
 
 def valid_batch_iterator(batch_size=BATCH_SIZE):
     """ Compile batch iterator for validation """
-    from msmd.data_pools.batch_iterators import VariableLengthSequencePoolIterator
-    batch_iterator = VariableLengthSequencePoolIterator(batch_size=batch_size,
-                                                        prepare=prepare_valid,
-                                                        shuffle=False)
+    from munglinker.batch_iterators import PoolIterator
+    batch_iterator = PoolIterator(batch_size=batch_size,
+                                  prepare=prepare_valid,
+                                  shuffle=False)
     return batch_iterator
 
 
 def test_batch_iterator(batch_size=BATCH_SIZE):
     """ Compile batch iterator for validation """
-    from msmd.data_pools.batch_iterators import VariableLengthSequencePoolIterator
-    batch_iterator = VariableLengthSequencePoolIterator(batch_size=batch_size,
-                                                        prepare=prepare_test,
-                                                        shuffle=False)
+    from munglinker.batch_iterators import PoolIterator
+    batch_iterator = PoolIterator(batch_size=batch_size,
+                                  prepare=prepare_test,
+                                  shuffle=False)
     return batch_iterator
 
 
 def runtime_batch_iterator(batch_size=BATCH_SIZE):
     """ Compile batch iterator for runtime: discards the outputs """
-    from msmd.data_pools.batch_iterators import VariableLengthSequencePoolIterator
+    from munglinker.batch_iterators import PoolIterator
     # Change k_samples to a fixed number to log every k_samples batches. Effectively logs more often.
-    batch_iterator = VariableLengthSequencePoolIterator(batch_size=batch_size,
-                                                        prepare=prepare_runtime,
-                                                        shuffle=False)
+    batch_iterator = PoolIterator(batch_size=batch_size,
+                                  prepare=prepare_runtime,
+                                  shuffle=False)
     return batch_iterator
 
 
@@ -250,10 +194,7 @@ if __name__ == '__main__':
     hidden_size = 16
     n_rnn_layers = 1
 
-    model = BaseConvnet(n_item_rows=n_rows,
-                        n_input_channels=1,
-                        n_hidden_rnn=16,
-                        n_classes_out=MAX_N_SIMULTANEOUS_ONSETS,
+    model = BaseConvnet(n_input_channels=1,
                         leaky_relu=False)
 
     # Prepare dummy batch

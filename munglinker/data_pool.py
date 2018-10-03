@@ -176,11 +176,13 @@ class PairwiseMungoDataPool:
         self.max_edge_length = max_edge_length
         self.max_negative_samples = max_negative_samples
 
-        self.prepare_train_entities()
-
         self.patch_size = patch_size
         self.patch_height = patch_size[0]
         self.patch_width = patch_size[1]
+
+        self.shape = None
+
+        self.prepare_train_entities()
 
     def __getitem__(self, key):
         # get batch
@@ -213,8 +215,9 @@ class PairwiseMungoDataPool:
     def reset_batch_generator(self):
         """Reset data pool with new random reordering of ``train_entities``.
         """
-        indices = np.random.permutation(len(self.train_entities))
-        self.train_entities = self.train_entities[indices]
+        permutation = [int(i) for i in np.random.permutation(len(self.train_entities))]
+        shuffled_train_entities = [self.train_entities[idx] for idx in permutation]
+        self.train_entities = shuffled_train_entities
 
     def prepare_train_entities(self):
         """Extract the triplets.
@@ -236,6 +239,9 @@ class PairwiseMungoDataPool:
                 self._mungo_pair_map.append((m_from, m_to))
                 self.train_entities.append([i_doc, n_entities])
                 n_entities += 1
+
+        # n_items x n_outputs x
+        self.shape = [len(self.train_entities)]
 
     def prepare_train_patch(self, i_image, m_from, m_to):
         image = self.images[i_image]

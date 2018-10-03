@@ -7,6 +7,10 @@ import time
 
 import numpy as np
 
+from muscima.inference_engine_constants import _CONST
+
+from munglinker.utils import plot_batch_patches
+
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
@@ -106,7 +110,7 @@ class PoolIterator(object):
         # compute current epoch index
         idx_epoch = np.mod(self.epoch_counter, self.n_epochs)
 
-        for i in range((n_samples + bs - 1) / bs):
+        for i in range(int((n_samples + bs - 1) / bs)):
 
             i_start = i * bs + idx_epoch * self.k_samples
             i_stop = (i + 1) * bs + idx_epoch * self.k_samples
@@ -156,11 +160,36 @@ def main(args):
     logging.info('Starting main...')
     _start_time = time.clock()
 
+    from munglinker.data_pool import load_munglinker_data
+    from munglinker.models import base_convnet as model
+    from munglinker.data_pool import PairwiseMungoDataPool
+
     # Your code goes here
-    raise NotImplementedError()
+    mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
+    images_root = '/Users/hajicj/data/MUSCIMA++/v0.9/data/fulls'
+
+    mungs, images = load_munglinker_data(mung_root, images_root,
+                                         max_items=1,
+                                         exclude_classes=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+    data_pool = PairwiseMungoDataPool(mungs=mungs, images=images)
+    data_pool.reset_batch_generator()
+
+    train_batch_iter = model.train_batch_iterator(batch_size=6)
+
+    iterator = train_batch_iter(data_pool)
+    generator = threaded_generator_from_iterator(iterator)
+
+    n_batches = 3
+
+    for batch_idx, _data_point in enumerate(generator):
+        np_inputs, np_targets = _data_point
+        plot_batch_patches(*_data_point)
+        if batch_idx + 1 == n_batches:
+            break
 
     _end_time = time.clock()
-    logging.info('[XXXX] done in {0:.3f} s'.format(_end_time - _start_time))
+    logging.info('batch_iterators.py done in {0:.3f} s'
+                 ''.format(_end_time - _start_time))
 
 
 if __name__ == '__main__':
