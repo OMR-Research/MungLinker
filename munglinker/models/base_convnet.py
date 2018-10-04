@@ -94,11 +94,19 @@ class BaseConvnet(nn.Module):
 
         # Add output fully connected layer
 
+        self.fcn = nn.Linear(bias=False)
+
         self.softmax = nn.Softmax2d()
 
     def get_conv_output(self, input):
         conv_output = self.cnn(input)
         return conv_output
+
+    def get_fcn_output_from_conv_output(self, conv_output):
+        raise NotImplementedError()
+
+    def get_output_from_fcn_output(self, fcn_output):
+        raise NotImplementedError()
 
     def forward(self, input):
         conv_output = self.get_conv_output(input)

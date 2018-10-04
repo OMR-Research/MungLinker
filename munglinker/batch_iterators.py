@@ -170,7 +170,7 @@ def main(args):
 
     mungs, images = load_munglinker_data(mung_root, images_root,
                                          max_items=1,
-                                         exclude_classes=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+                                         exclude_classes=_CONST.STAFF_CROPOBJECT_CLSNAMES)
     data_pool = PairwiseMungoDataPool(mungs=mungs, images=images)
     data_pool.reset_batch_generator()
 

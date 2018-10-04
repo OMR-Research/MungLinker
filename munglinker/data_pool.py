@@ -249,6 +249,17 @@ class PairwiseMungoDataPool:
         return patch
 
     def get_X_patch(self, image, mungo_from, mungo_to):
+        """
+        Assumes image is larger than patch.
+
+        :param image:
+        :param mungo_from:
+        :param mungo_to:
+
+        :return: A 3 * patch_height * patch_width array. Channel 0
+            is the input image, channel 1 is the from-mungo mask,
+            channel 2 is the to-mungo mask.
+        """
         m_vert, m_horz = self._compute_patch_center(mungo_from, mungo_to)
         patch_radius_v = self.patch_height // 2
         patch_radius_h = self.patch_width // 2
@@ -259,11 +270,23 @@ class PairwiseMungoDataPool:
         bbox_patch = t, l, b, r
 
         output = np.zeros((3, (b - t), (r - l)))
+        bbox_image = 0, 0, image.shape[0], image.shape[1]
+        bbox_of_image_wrt_patch = bbox_intersection(bbox_image, bbox_patch)
+        i_crop_t, i_crop_l, i_crop_b, i_crop_r = bbox_of_image_wrt_patch
+        image_crop = image[i_crop_t:i_crop_b, i_crop_l:i_crop_r]
+
+        bbox_of_patch_wrt_image = bbox_intersection(bbox_patch, bbox_image)
+        i_patch_t, i_patch_l, i_patch_b, i_patch_r = bbox_of_patch_wrt_image
+
         try:
-            output[0] = image[t:b, l:r] * 1
+            output[0][i_patch_t:i_patch_b, i_patch_l:i_patch_r] = image_crop
         except ValueError:
-            print('Patch bounding box: {}'.format(bbox_patch))
+            print('Image shape: {}'.format(image.shape))
+            print('Patch bbox:  {}'.format(bbox_patch))
+            print('bbox_of_image_wrt_patch: {}'.format(bbox_of_image_wrt_patch))
+            print('bbox_of_patch_wrt_image: {}'.format(bbox_of_patch_wrt_image))
             raise
+
         if output[0].max() > 1.0:
             output[0] = output[0] / output[0].max()
 

@@ -369,7 +369,7 @@ def plot_batch_patches(X, y, max_items=6):
     on the Y axis of each subplot."""
     import matplotlib.pyplot as plt
 
-    plt.figure()
+    plt.figure(figsize=(9.0, 6.0))
     plt.clf()
 
     n_items = min(X.shape[0], max_items)
@@ -382,8 +382,11 @@ def plot_batch_patches(X, y, max_items=6):
         target = y[i]
         patch_sum = np.sum(patch, axis=0)
         plt.ylabel(target)
+        plt.yticks([])
+        plt.xticks([])
         plt.imshow(patch_sum, cmap='gray', interpolation='nearest')
 
+    plt.tight_layout()
     plt.show()
 
 
