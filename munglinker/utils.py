@@ -328,6 +328,17 @@ def generate_munglinker_training_batch(batch_size, patch_shape):
     targets = np.array([get_dummy_target(p) for p in patches])
     return patches, targets
 
+
+##############################################################################
+# Target-side utilities
+
+def targets2classes(targets):
+    """From the two-class softmax outputs, creates a binary vector: 0 for no
+    edge, 1 for edge."""
+    output = np.argmax(targets, axis=1)
+    return output
+
+
 ##############################################################################
 # Little utilities for MIDI matrix
 

@@ -19,6 +19,7 @@ __author__ = "Jan Hajic jr."
 
 
 ##############################################################################
+# This should all be in a config file.
 
 # Data point sampling parameters
 THRESHOLD_NEGATIVE_DISTANCE = 200
@@ -141,7 +142,8 @@ class PairwiseMungoDataPool:
                  max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
                  patch_size=(PATCH_HEIGHT, PATCH_WIDTH),
                  zoom=IMAGE_ZOOM,
-                 max_patch_displacement=MAX_PATCH_DISPLACEMENT):
+                 max_patch_displacement=MAX_PATCH_DISPLACEMENT,
+                 balance_samples=False):
         """Initialize the data pool.
 
         :param mungs: The NotationGraph objects for each document
@@ -169,6 +171,9 @@ class PairwiseMungoDataPool:
             sampled from up to this many pixels (both vertically and
             horizontally) away from the true center point between
             the mungos pair.
+
+        :param balance_samples: If set, will only keep as many random
+            negative samples as there are positive samples. [NOT IMPLEMENTED]
         """
         self.mungs = mungs
         self.images = images
@@ -382,13 +387,19 @@ class PairwiseMungoDataPool:
 
 ##############################################################################
 
+# Techcnically these methods are the same, but there might in the future
+# be different validation checks.
 
 def load_split(split_file):
-
     with open(split_file, 'rb') as hdl:
         split = yaml.load(hdl)
-
     return split
+
+
+def load_config(config_file):
+    with open(config_file, 'rb') as hdl:
+        config = yaml.load(hdl)
+    return config
 
 
 def load_munglinker_data_lite(mung_root, images_root,
@@ -494,16 +505,39 @@ def load_munglinker_data(mung_root, images_root, split_file,
     :return: ``dict(train=tr_pool, valid=va_pool, test=te_pool, train_tag="")``
     """
     split = load_split(split_file)
+
+    if config_file is not None:
+        config = load_config(config_file)
+        data_pool_dict = {
+         'max_edge_length': config['THRESHOLD_NEGATIVE_DISTANCE'],
+         'max_negative_samples': config['MAX_NEGATIVE_EXAMPLES_PER_OBJECT'],
+         'patch_size': (config['PATCH_HEIGHT'], config['PATCH_WIDTH']),
+         'zoom': config['IMAGE_ZOOM'],
+         'max_patch_displacement': config['MAX_PATCH_DISPLACEMENT'],
+         'balance_samples': False
+        }
+    else:
+        data_pool_dict = {
+         'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
+         'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+         'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
+         'zoom': IMAGE_ZOOM,
+         'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
+         'balance_samples': False
+        }
+
     if not test_only:
         tr_mungs, tr_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['train'],
                                                         exclude_classes=exclude_classes)
-        tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images)
+        tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images,
+                                        **data_pool_dict)
 
         va_mungs, va_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['valid'],
                                                         exclude_classes=exclude_classes)
-        va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images)
+        va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images,
+                                        **data_pool_dict)
     else:
         tr_pool = None
         va_pool = None
@@ -512,7 +546,8 @@ def load_munglinker_data(mung_root, images_root, split_file,
         te_mungs, te_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['test'],
                                                         exclude_classes=exclude_classes)
-        te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images)
+        te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images
+                                        **data_pool_dict)
     else:
         te_pool = None
 

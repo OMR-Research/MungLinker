@@ -24,7 +24,7 @@ from torch.nn.modules.loss import _WeightedLoss, _assert_no_grad, MSELoss
 from torch.optim import Adam
 
 from munglinker.image_normalization import auto_invert, stretch_intensity, ImageNormalizer
-from munglinker.utils import BColors, show_batch_simple, show_onset_sequence_predictions
+from munglinker.utils import BColors, show_batch_simple, targets2classes
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -624,10 +624,15 @@ class PyTorchNetwork(object):
             if batch_idx < 5:
                 # This will get relegated to logging; for now
                 # we print directly.
-                np_pred = pred.data.numpy()
-                np_pred_int = (np_pred - (np_pred % 1.0)).astype(numpy.int)
-                # print('\t{}: Targets: {}'.format(batch_idx, np_targets))
-                # print('\t{}: Errors:  {}'.format(batch_idx, np_pred_int - np_targets))
+                if torch.cuda.is_available():
+                    np_pred = pred.data.cpu().numpy()
+                else:
+                    np_pred = pred.data.numpy()
+
+                np_pred_classes = targets2classes(np_pred)
+                np_target_classes = targets2classes(np_targets)
+                print('\t{}: Targets: {}'.format(batch_idx, np_target_classes))
+                print('\t{}: Outputs: {}'.format(batch_idx, np_pred_classes))
 
             if (batch_idx < 1) and (self._torch2np(loss) < 100):
                 # show_batch_simple(np_inputs, np_targets)

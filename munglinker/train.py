@@ -115,6 +115,11 @@ def build_argument_parser():
     parser.add_argument('--show_architecture', action='store_true',
                         help='Print network architecture before training starts.')
 
+    parser.add_argument('--debugging_regime', action='store_true',
+                        help='If set, will severely limit the amount of training'
+                             ' data in order to run through the whole operation'
+                             ' as quickly as possible.')
+
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
     parser.add_argument('--debug', action='store_true',

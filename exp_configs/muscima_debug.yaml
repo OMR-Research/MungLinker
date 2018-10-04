@@ -1,0 +1,17 @@
+# Data point sampling parameters
+THRESHOLD_NEGATIVE_DISTANCE: 200
+MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
+
+# The size of the image patches that are ouptut
+PATCH_HEIGHT: 256
+PATCH_WIDTH: 512
+
+# The rescaling factor that is applied before the patch is extracted
+# (In effect, setting this to 0.5 downscales by a factor of 2, so
+#  the effective window w.r.t. the input image will be twice the specified
+#  PATCH_HEIGHT, PATCH_WIDTH.)
+IMAGE_ZOOM: 0.5
+
+# Randomly moves the patch this many pixels away from the midpoint
+# between the two sampled objects.
+MAX_PATCH_DISPLACEMENT: 0
