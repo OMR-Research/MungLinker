@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from e2eomr.utils import n_onsets_from_midi_matrix
+from munglinker.utils import n_onsets_from_midi_matrix
 
 
 __version__ = "0.0.1"

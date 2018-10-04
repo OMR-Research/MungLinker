@@ -14,7 +14,7 @@ from scipy.misc import imsave, imread
 
 
 # This one is a really external dependency
-from msmd.data_pools.batch_iterators import threaded_generator_from_iterator
+from munglinker.batch_iterators import threaded_generator_from_iterator
 
 import torch
 import torch.nn as nn
