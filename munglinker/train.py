@@ -21,8 +21,6 @@ import time
 import numpy
 from scipy.misc import imsave
 
-from msmd.data_pools.mutopia_data import load_e2e_omr
-
 # from munglinker.detector import ConnectedComponentDetector
 # from munglinker.evaluation import evaluate_detection, compute_eval_metrics_multichannel, dice
 # from munglinker.preprocessing import MUSCIMALabelsDataset
