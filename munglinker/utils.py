@@ -294,6 +294,39 @@ def plot_results_difference(results_base, results_other, testset, name='NONAME')
     plt.show()
 
 
+##############################################################################
+# Little utilities for patches
+
+def generate_random_patches_batch(batch_size, patch_shape):
+    patch_in = np.zeros((batch_size, *patch_shape))
+    for i in range(batch_size):
+        p = generate_random_patch(patch_shape)
+        patch_in[i] = p
+    return patch_in
+
+
+def generate_random_patch(shape, is_binary=True):
+    output = np.random.randint(0, 2, shape, dtype='uint8')
+    import cv2
+    output[0] = cv2.morphologyEx(output[0], op=cv2.MORPH_DILATE, kernel=np.ones((2, 3)))
+    output[0] = cv2.morphologyEx(output[0], op=cv2.MORPH_OPEN, kernel=np.ones((21, 21)))
+    output[1][output[0] == 0.0] = 0.0
+    output[2][output[0] == 0.0] = 0.0
+    output[output > 0] = 1.0
+    return output.astype('float32')
+
+
+def get_dummy_target(patch):
+    if patch[0].sum() < (patch[0].size / 6.0):
+        return 1
+    else:
+        return 0
+
+
+def generate_munglinker_training_batch(batch_size, patch_shape):
+    patches = generate_random_patches_batch(batch_size, patch_shape)
+    targets = np.array([get_dummy_target(p) for p in patches])
+    return patches, targets
 
 ##############################################################################
 # Little utilities for MIDI matrix

@@ -45,18 +45,16 @@ class BaseConvnet(nn.Module):
 
         self.n_input_channels = n_input_channels
 
-        self._counter_vec = Variable(_counter_vec)
-        if torch.cuda.is_available():
-            self._counter_vec.cuda()
-
         # Convolutional part
         # ------------------
-        kernel_sizes = [3, 3, 3]
-        paddings = [1, 1, 1]
-        strides = [1, 1, 1]
-        n_filters = [8, 16, 32]
 
-        n_pools = 3
+        # Conv layer params, downstream through the stack
+        kernel_sizes = [3, 3, 3, 3, 3]
+        paddings = [1, 1, 1, 1, 1]
+        strides = [1, 1, 1, 1, 1]
+        n_filters = [8, 16, 32, 32, 32]
+
+        n_pools = 5
 
         cnn = nn.Sequential()
 
@@ -82,31 +80,43 @@ class BaseConvnet(nn.Module):
                 cnn.add_module('relu{0}'.format(i), nn.ReLU(True))
 
         # Input size expected (n_batch x 1 x MIDI_N_PITCHES x MIDI_MAX_LEN),
-        # which is by default (n_batch x 1 x 128 x 256)
+        # which is by default (n_batch x 3 x 256 x 512)
         convRelu(0)
-        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 8 x 64 x 128
+        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 8 x 128 x 256
         convRelu(1)
-        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 16 x 32 x 64
+        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 16 x 64 x 128
         convRelu(2)
-        cnn.add_module('pooling{0}'.format(2), nn.MaxPool2d(2, 2))  # 32 x 16 x 32
+        cnn.add_module('pooling{0}'.format(2), nn.MaxPool2d(2, 2))  # 32 x 32 x 64
+        convRelu(3)
+        cnn.add_module('pooling{0}'.format(3), nn.MaxPool2d(2, 2))  # 32 x 16 x 32
+        convRelu(4)
+        cnn.add_module('pooling{0}'.format(4), nn.MaxPool2d(2, 2))  # 32 x 8 x 16
 
         self.cnn = cnn
 
-        # Add output fully connected layer
+        # Add fully connected layer stack
+        fcn = nn.Sequential()
+        fcn.add_module('fcn0',
+                       nn.Linear(in_features=32 * 8 * 16,
+                                 out_features=2,  # Output decision
+                                 bias=False))
 
-        self.fcn = nn.Linear(bias=False)
+        self.fcn = fcn
 
-        self.softmax = nn.Softmax2d()
+        # Output through softmax
+        self.softmax = nn.Softmax()
 
     def get_conv_output(self, input):
         conv_output = self.cnn(input)
         return conv_output
 
     def get_fcn_output_from_conv_output(self, conv_output):
-        raise NotImplementedError()
+        fcn_input = conv_output.view(-1, 32 * 8 * 16)
+        fcn_output = self.fcn(fcn_input)
+        return fcn_output
 
     def get_output_from_fcn_output(self, fcn_output):
-        raise NotImplementedError()
+        return self.softmax(fcn_output)
 
     def forward(self, input):
         conv_output = self.get_conv_output(input)
@@ -123,8 +133,16 @@ def get_build_model():
 
 
 def prepare_patch_and_target(patch, target):
-    """Does not do anything."""
-    return patch, target
+    """Does not do anything to patches.
+
+    Expands targets to two-way softmax format."""
+    if target.shape != (target.shape[0], 2):
+        target_for_softmax = np.zeros((target.shape[0], 2))
+        target_for_softmax[range(target.shape[0]), target] = 1.0
+    else:
+        target_for_softmax = target
+
+    return patch, target_for_softmax
 
 
 ##############################################################################
@@ -196,31 +214,25 @@ if __name__ == '__main__':
     # Init model
     # ----------
 
-    _batch_size = 3
-    max_length = 256
-    n_rows = 128
-    hidden_size = 16
-    n_rnn_layers = 1
+    _batch_size = 6
+    patch_shape = 3, 256, 512
+    patch_height = 256
+    patch_width = 512
+    patch_channels = 3
 
-    model = BaseConvnet(n_input_channels=1,
+    model = BaseConvnet(n_input_channels=patch_channels,
                         leaky_relu=False)
 
     # Prepare dummy batch
     # -------------------
+    from munglinker.utils import generate_munglinker_training_batch
+    patches, targets = generate_munglinker_training_batch(_batch_size, patch_shape)
 
+    print('patches shape: {}'.format(patches.shape))
 
-    # container batch
-    midi_in = np.zeros((_batch_size, n_rows, max_length))
-
-    # Generate random MIDI input data
-    from e2eomr.utils import generate_random_mm
-    for i in range(_batch_size):
-        mm = generate_random_mm((n_rows, max_length))
-        midi_in[i, :, :] = mm
-
-    print('midi_in shape: {}'.format(midi_in.shape))
-
-    X, y = prepare_patch_and_target(None, None, midi_in, None)
+    X, y = prepare_patch_and_target(patches, targets)
+    from munglinker.utils import plot_batch_patches
+    plot_batch_patches(patches, targets)
 
     X_torch = Variable(torch.from_numpy(X).float())
     y_torch = Variable(torch.from_numpy(y).float())
