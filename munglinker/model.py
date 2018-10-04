@@ -24,7 +24,7 @@ from torch.nn.modules.loss import _WeightedLoss, _assert_no_grad, MSELoss
 from torch.optim import Adam
 
 from munglinker.image_normalization import auto_invert, stretch_intensity, ImageNormalizer
-from munglinker.utils import BColors, show_batch_simple, show_onset_counter_predictions, show_onset_sequence_predictions
+from munglinker.utils import BColors, show_batch_simple, show_onset_sequence_predictions
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -632,7 +632,8 @@ class PyTorchNetwork(object):
             if (batch_idx < 1) and (self._torch2np(loss) < 100):
                 # show_batch_simple(np_inputs, np_targets)
                 # show_onset_counter_predictions(inputs, targets, self.net)
-                show_onset_sequence_predictions(inputs, targets, self.net)
+                # show_onset_sequence_predictions(inputs, targets, self.net)
+                pass
 
             current_batch_results = collections.OrderedDict()
             current_batch_results['loss'] = self._torch2np(loss)
@@ -833,9 +834,10 @@ class PyTorchNetwork(object):
 
             # Visualizing performance on training data
             if ((batch_idx % 100) == 0) and (self._torch2np(loss) < 100):
+                pass
                 # show_batch_simple(np_inputs, np_targets)
                 # show_onset_counter_predictions(inputs, targets, self.net)
-                show_onset_sequence_predictions(inputs, targets, self.net)
+                # show_onset_sequence_predictions(inputs, targets, self.net)
 
 
 

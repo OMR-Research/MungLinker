@@ -401,6 +401,7 @@ def plot_batch_patches(X, y, max_items=6):
     """Shows the current input batch patches; true/false is labeled
     on the Y axis of each subplot."""
     import matplotlib.pyplot as plt
+    from scipy.ndimage import center_of_mass
 
     plt.figure(figsize=(9.0, 6.0))
     plt.clf()
@@ -413,11 +414,24 @@ def plot_batch_patches(X, y, max_items=6):
         plt.subplot(n_rows, n_items_per_row, i+1)
         patch = X[i]
         target = y[i]
+
         patch_sum = np.sum(patch, axis=0)
+        plt.imshow(patch_sum, cmap='gray', interpolation='nearest')
+
+        # Indicate from & to
+        cfx, cfy = center_of_mass(patch[1])
+        ctx, cty = center_of_mass(patch[2])
+        arrowcolor = 'r'
+        if y[i][1] > y[i][0]:
+            arrowcolor = 'g'
+        plt.arrow(cfy, cfx, cty - cfy, ctx - cfx,
+                  color=arrowcolor,
+                  width=0.1, head_width=15, head_length=20,
+                  length_includes_head=True, overhang=0.5)
+
         plt.ylabel(target)
         plt.yticks([])
         plt.xticks([])
-        plt.imshow(patch_sum, cmap='gray', interpolation='nearest')
 
     plt.tight_layout()
     plt.show()

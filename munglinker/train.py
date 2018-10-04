@@ -30,6 +30,7 @@ from msmd.data_pools.mutopia_data import load_e2e_omr
 from munglinker.model import PyTorchTrainingStrategy, PyTorchNetwork
 # from munglinker.augmentation import ImageAugmentationProcessor
 from munglinker.utils import BColors, build_experiment_name, select_model
+from munglinker.data_pool import load_munglinker_data
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -51,26 +52,30 @@ def build_argument_parser():
                              ' this model. Careful: in order to continue training,'
                              ' you would also have to recover the optimizer state.')
 
-    parser.add_argument('-r', '--msmd_root', action='store', required=True,
-                        help='The root directory which contains the masks'
-                             ' for individual labels.')
+    parser.add_argument('-r', '--mung_root', action='store', required=True,
+                        help='The root directory that contains the MuNG XMLs.')
+    parser.add_argument('-i', '--image_root', action='store', required=True,
+                        help='The root directory that contains the images of'
+                             ' scores that are represented by the MuNGs. The'
+                             ' image names must correspond to the MuNG file'
+                             ' names, up to the file type suffix.')
     parser.add_argument('-s', '--split_file', action='store', required=True,
-                        help='The split file that specifies which MSMD pieces'
+                        help='The split file that specifies which MUSCIMA++ items'
                              ' are training, validation, and test data.')
 
     parser.add_argument('-c', '--config_file', action='store', required=True,
                         help='The config file that specifies things like'
                              ' preprocessing.')
 
-    parser.add_argument('--validation_size', type=int, default=20,
-                        action='store',
-                        help='Number of images to use for validation.'
-                             ' If set to 0, will validate on training data.'
-                             ' (Useful for tiny datasets.)')
-    parser.add_argument('--validation_detection_threshold', type=float,
-                        default=0.5, action='store',
-                        help='Detector threshold for validation runs, '
-                             'to record detection scores as well as dice.')
+    # parser.add_argument('--validation_size', type=int, default=20,
+    #                     action='store',
+    #                     help='Number of images to use for validation.'
+    #                          ' If set to 0, will validate on training data.'
+    #                          ' (Useful for tiny datasets.)')
+    # parser.add_argument('--validation_detection_threshold', type=float,
+    #                     default=0.5, action='store',
+    #                     help='Detector threshold for validation runs, '
+    #                          'to record detection scores as well as dice.')
 
     parser.add_argument('-e', '--export', action='store', required=True,
                         help='Export the model params into this file.')
@@ -146,7 +151,9 @@ def main(args):
     # ------------------------------------------------------------------------
     # Initializing the data
 
-    data = load_e2e_omr(
+    data = load_munglinker_data(
+        mung_root=args.mung_root,
+        images_root=args.image_root,
         split_file=args.split_file,
         config_file=args.config_file,
         test_only=False,

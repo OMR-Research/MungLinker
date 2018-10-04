@@ -8,7 +8,7 @@ import random
 import time
 
 import numpy as np
-
+import yaml
 from muscima.cropobject import cropobject_distance, bbox_intersection
 from muscima.io import parse_cropobject_list
 from muscima.graph import NotationGraph
@@ -184,6 +184,11 @@ class PairwiseMungoDataPool:
 
         self.prepare_train_entities()
 
+        logging.info('Data pool prepared with shape {}'.format(self.shape))
+
+    def __len__(self):
+        return self.shape[0]
+
     def __getitem__(self, key):
         # get batch
         if key.__class__ == int:
@@ -205,10 +210,10 @@ class PairwiseMungoDataPool:
             if m_to.objid in m_from.outlinks:
                 targets[i_entity] = 1
 
-            logging.info('Y: {}\tFROM: {}/{}, TO: {}/{}'
-                         ''.format(int(targets[i_entity]),
-                                   m_from.objid, m_from.clsname,
-                                   m_to.objid, m_to.clsname))
+            logging.debug('DataPool: Y: {}\tFROM: {}/{}, TO: {}/{}'
+                          ''.format(int(targets[i_entity]),
+                                    m_from.objid, m_from.clsname,
+                                    m_to.objid, m_to.clsname))
 
         return [patches_batch, targets]
 
@@ -378,13 +383,35 @@ class PairwiseMungoDataPool:
 ##############################################################################
 
 
-def load_munglinker_data(mung_root, images_root,
-                         max_items=None, exclude_classes=None):
+def load_split(split_file):
+
+    with open(split_file, 'rb') as hdl:
+        split = yaml.load(hdl)
+
+    return split
+
+
+def load_munglinker_data_lite(mung_root, images_root,
+                              include_names=None,
+                              max_items=None, exclude_classes=None):
     """Loads the MuNGs and corresponding images from the given folders.
     All *.xml files in ``mung_root`` are considered MuNG files, all *.png
     files in ``images_root`` are considered image files.
 
     Use this to get data for initializing the PairwiseMungoDataPool.
+
+    :param mung_root: Directory containing MuNG XML files.
+
+    :param images_root: Directory containing underlying image files (png).
+
+    :param include_names: Only load files such that their basename is in
+        this list. Useful for loading train/test/validate splits.
+
+    :param max_items: Load at most this many files.
+
+    :param exclude_classes: When loading the MuNG, exclude notation objects
+        that are labeled as one of these classes. (Most useful for excluding
+        staff objects.)
 
     :returns: mungs, images  -- a tuple of lists.
     """
@@ -404,13 +431,17 @@ def load_munglinker_data(mung_root, images_root,
         image = np.array(PIL.Image.open(filename).convert('L')).astype('uint8')
         return image
 
-    mung_files = [os.path.join(mung_root, f) for f in os.listdir(mung_root)
+    mung_files = [os.path.join(mung_root, f) for f in sorted(os.listdir(mung_root))
                   if f.endswith('xml')]
     mung_ids = [os.path.splitext(os.path.basename(f))[0] for f in mung_files]
+    if include_names is not None:
+        mung_ids = [_id for _id in mung_ids if _id in include_names]
 
-    image_files = [os.path.join(images_root, f) for f in os.listdir(images_root)
+    image_files = [os.path.join(images_root, f) for f in sorted(os.listdir(images_root))
                    if f.endswith('png')]
     image_ids = [os.path.splitext(os.path.basename(f))[0] for f in image_files]
+    if include_names is not None:
+        image_ids = [_id for _id in image_ids if _id in include_names]
 
     mung_idxs = [idx for idx, item_id in enumerate(mung_ids) if item_id in image_ids]
     image_idxs = [idx for idx, item_id in enumerate(image_ids) if item_id in mung_ids]
@@ -432,6 +463,61 @@ def load_munglinker_data(mung_root, images_root,
                 break
 
     return mungs, images
+
+
+def load_munglinker_data(mung_root, images_root, split_file,
+                         config_file=None,
+                         test_only=False, no_test=False,
+                         exclude_classes=None,):
+    """Loads the train/validation/test data pools for the MuNGLinker
+    experiments.
+
+    :param mung_root: Directory containing MuNG XML files.
+
+    :param images_root: Directory containing underlying image files (png).
+
+    :param split_file: YAML file that defines which items are for training,
+        validation, and test.
+
+    :param config_file: YAML file defining further experiment properties.
+        Not used so far.
+
+    :param test_only: If set, the output dict will only contain the test pool,
+        and the train & valid values will be None.
+
+    :param no_test: If set, will not load the test pool. (Use for training.)
+
+    :param exclude_classes: When loading the MuNG, exclude notation objects
+        that are labeled as one of these classes. (Most useful for excluding
+        staff objects.)
+
+    :return: ``dict(train=tr_pool, valid=va_pool, test=te_pool, train_tag="")``
+    """
+    split = load_split(split_file)
+    if not test_only:
+        tr_mungs, tr_images = load_munglinker_data_lite(mung_root, images_root,
+                                                        include_names=split['train'],
+                                                        exclude_classes=exclude_classes)
+        tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images)
+
+        va_mungs, va_images = load_munglinker_data_lite(mung_root, images_root,
+                                                        include_names=split['valid'],
+                                                        exclude_classes=exclude_classes)
+        va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images)
+    else:
+        tr_pool = None
+        va_pool = None
+
+    if not no_test:
+        te_mungs, te_images = load_munglinker_data_lite(mung_root, images_root,
+                                                        include_names=split['test'],
+                                                        exclude_classes=exclude_classes)
+        te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images)
+    else:
+        te_pool = None
+
+    return dict(train=tr_pool, valid=va_pool, test=te_pool, train_tag="")
+
 
 ##############################################################################
 
@@ -456,9 +542,9 @@ def main(args):
     mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
     images_root = '/Users/hajicj/data/MUSCIMA++/v0.9/data/fulls'
 
-    mungs, images = load_munglinker_data(mung_root, images_root,
-                                         max_items=1,
-                                         exclude_classes=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
+    mungs, images = load_munglinker_data_lite(mung_root, images_root,
+                                              max_items=1,
+                                              exclude_classes=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
 
     data_pool = PairwiseMungoDataPool(mungs=mungs, images=images)
     print('Entities after loading data pool: {}'.format(len(data_pool.train_entities)))

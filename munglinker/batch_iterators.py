@@ -160,7 +160,7 @@ def main(args):
     logging.info('Starting main...')
     _start_time = time.clock()
 
-    from munglinker.data_pool import load_munglinker_data
+    from munglinker.data_pool import load_munglinker_data_lite
     from munglinker.models import base_convnet as model
     from munglinker.data_pool import PairwiseMungoDataPool
 
@@ -168,9 +168,9 @@ def main(args):
     mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
     images_root = '/Users/hajicj/data/MUSCIMA++/v0.9/data/fulls'
 
-    mungs, images = load_munglinker_data(mung_root, images_root,
-                                         max_items=1,
-                                         exclude_classes=_CONST.STAFF_CROPOBJECT_CLSNAMES)
+    mungs, images = load_munglinker_data_lite(mung_root, images_root,
+                                              max_items=1,
+                                              exclude_classes=_CONST.STAFF_CROPOBJECT_CLSNAMES)
     data_pool = PairwiseMungoDataPool(mungs=mungs, images=images)
     data_pool.reset_batch_generator()
 
@@ -179,7 +179,7 @@ def main(args):
     iterator = train_batch_iter(data_pool)
     generator = threaded_generator_from_iterator(iterator)
 
-    n_batches = 3
+    n_batches = 10
 
     for batch_idx, _data_point in enumerate(generator):
         np_inputs, np_targets = _data_point

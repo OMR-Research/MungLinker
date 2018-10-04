@@ -138,7 +138,7 @@ def prepare_patch_and_target(patch, target):
     Expands targets to two-way softmax format."""
     if target.shape != (target.shape[0], 2):
         target_for_softmax = np.zeros((target.shape[0], 2))
-        target_for_softmax[range(target.shape[0]), target] = 1.0
+        target_for_softmax[range(target.shape[0]), target.astype('uint8')] = 1.0
     else:
         target_for_softmax = target
 
