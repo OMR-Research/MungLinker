@@ -78,7 +78,7 @@ def build_argument_parser():
     parser.add_argument('-e', '--export', action='store', required=True,
                         help='Export the model params into this file.')
 
-    parser.add_argument('-b', '--batch_size', type=int, default=2,
+    parser.add_argument('-b', '--batch_size', type=int, default=100,
                         help='Minibatch size for training.')
     parser.add_argument('--n_epochs', type=int, default=100,
                         help='Number of training epochs.')
@@ -165,9 +165,9 @@ def main(args):
                  ''.format(len(data['train'].train_entities)))
 
     # Iterators
-    train_batch_iter = model_mod.train_batch_iterator(model_mod.BATCH_SIZE)
-    valid_batch_iter = model_mod.valid_batch_iterator(model_mod.BATCH_SIZE)
-    test_batch_iter = model_mod.test_batch_iterator(model_mod.BATCH_SIZE)
+    train_batch_iter = model_mod.train_batch_iterator(args.batch_size)
+    valid_batch_iter = model_mod.valid_batch_iterator(args.batch_size)
+    test_batch_iter = model_mod.test_batch_iterator(args.batch_size)
     # runtime_batch_iter = model_mod.runtime_batch_iterator()
     batch_iters = {'train': train_batch_iter,
                    'valid': valid_batch_iter,

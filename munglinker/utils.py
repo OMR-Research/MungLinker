@@ -334,7 +334,14 @@ def generate_munglinker_training_batch(batch_size, patch_shape):
 
 def targets2classes(targets):
     """From the two-class softmax outputs, creates a binary vector: 0 for no
-    edge, 1 for edge."""
+    edge, 1 for edge.
+
+    >>> import numpy as np
+    >>> x = np.array([[0.8, 0.2], [0.1, 0.9], [0.4, 0.6], [0.5, 0.5]])
+    >>> targets2classes(x)
+    array([0, 1, 1, 0])
+
+    """
     output = np.argmax(targets, axis=1)
     return output
 
