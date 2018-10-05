@@ -194,6 +194,7 @@ def main(args):
                                        validation_use_detector=True,
                                        best_model_by_fscore=False,
                                        max_epochs=args.n_epochs,
+                                       batch_size=args.batch_size,
                                        validation_subsample_window=None,
                                        validation_stride_ratio=None,
                                        validation_nodetector_subsample_window=None,

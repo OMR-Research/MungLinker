@@ -348,19 +348,19 @@ class PyTorchNetwork(object):
                                                           lr=lr)
 
             # Initialize validation
-            data['valid'].batch_size = 1
-            val_detector = None
-            if training_strategy.validation_use_detector:
-                pass
-                # # Initialize the detector for evaluating detection
-                # # performance, as opposed to mere Dice coef.
-                # val_detector = ConnectedComponentDetector(
-                #     net=self.net,
-                #     is_logits=True,
-                #     stride_ratio=training_strategy.validation_stride_ratio,
-                #     threshold=training_strategy.validation_detector_threshold,
-                #     min_area=training_strategy.validation_detector_min_area,
-                # )
+            # data['valid'].batch_size = 1
+            # val_detector = None
+            # if training_strategy.validation_use_detector:
+            #     pass
+            #     # # Initialize the detector for evaluating detection
+            #     # # performance, as opposed to mere Dice coef.
+            #     # val_detector = ConnectedComponentDetector(
+            #     #     net=self.net,
+            #     #     is_logits=True,
+            #     #     stride_ratio=training_strategy.validation_stride_ratio,
+            #     #     threshold=training_strategy.validation_detector_threshold,
+            #     #     min_area=training_strategy.validation_detector_min_area,
+            #     # )
 
             ##################################################################
             # Iteration
@@ -392,24 +392,20 @@ class PyTorchNetwork(object):
                 # only collect loss.
                 print('\nValidating epoch {}'.format(epoch_idx))
 
-                # If no early-stopping should be performed, do not bother with validation.
-                if not training_strategy.early_stopping:
-                    continue
-
-                elif (epoch_idx + 1) % training_strategy.n_epochs_per_checkpoint != 0:
+                if (epoch_idx + 1) % training_strategy.n_epochs_per_checkpoint != 0:
                     ##################################################################
                     # Outside checkpoint.
                     # Only run validation without detector, to track validation loss
                     # for early-stopping & refinement
                     va_epoch = self._validate_epoch(data['valid'],
                                                     batch_iters['valid'],
-                                                    loss_fn, training_strategy,
-                                                    detector=None,
-                                                    subsample_window=training_strategy.validation_nodetector_subsample_window)
+                                                    loss_fn, training_strategy)
                     _, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
 
                     va_loss = va_epoch_agg['loss']
                     va_losses.append(va_loss)
+
+                    print('Validation results: {}'.format(pprint.pformat(va_epoch)))
                     # print('\tValidation loss: {0:.6f}'.format(va_loss))
 
                 else:
@@ -417,8 +413,7 @@ class PyTorchNetwork(object):
                     # This only happens once per n_epochs_per_checkpoint
                     va_epoch = self._validate_epoch(data['valid'],
                                                     batch_iters['valid'],
-                                                    loss_fn, training_strategy,
-                                                    detector=val_detector)
+                                                    loss_fn, training_strategy)
                     va_results.append(va_epoch)
                     va_epoch_agg_l, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
 
@@ -479,8 +474,7 @@ class PyTorchNetwork(object):
                         print('---------------------------------')
                         print('Final validation:\n')
 
-                        va_epoch = self._validate_epoch(data['valid'], loss_fn, training_strategy,
-                                                        val_detector)
+                        va_epoch = self._validate_epoch(data['valid'], loss_fn, training_strategy)
                         va_results.append(va_epoch)
 
                         # (Aggregate across images, macro-averages per label and overall)
@@ -575,14 +569,9 @@ class PyTorchNetwork(object):
 
     def _validate_epoch(self, data_pool, valid_batch_iter,
                         loss_fn, training_strategy,
-                        detector=None,
-                        subsample_window=None,
                         estimate_dices=False,
                         debug_mode=False):
-        """Run one epoch of validation. Returns a dict of validation results
-        per validation image and (nested) output label."""
-        # print('Validating model...')
-
+        """Run one epoch of validation. Returns a dict of validation results."""
         # This is what we eventually want, but let's do this after we have
         # debugged trainings:
         #
@@ -605,6 +594,9 @@ class PyTorchNetwork(object):
         # validation_prob_masks = collections.OrderedDict()
         # validation_pred_labels = collections.OrderedDict()
 
+        agg_pred_classes = []
+        agg_target_classes = []
+
         for batch_idx in range(n_batches):
             # if detector is not None:
             #     print('\tImage {0}: {1}'.format(i, val_img_name))
@@ -618,32 +610,33 @@ class PyTorchNetwork(object):
                 targets = targets.cuda()
 
             pred = self.net(inputs)
+            np_pred = self._torch2np(pred)
+            np_pred_classes = targets2classes(np_pred)
+            np_target_classes = targets2classes(np_targets)
 
             loss = loss_fn(pred, targets)
 
             if batch_idx < 5:
                 # This will get relegated to logging; for now
                 # we print directly.
-                if torch.cuda.is_available():
-                    np_pred = pred.data.cpu().numpy()
-                else:
-                    np_pred = pred.data.numpy()
-
                 np_pred_classes = targets2classes(np_pred)
                 np_target_classes = targets2classes(np_targets)
                 print('\t{}: Targets: {}'.format(batch_idx, np_target_classes))
                 print('\t{}: Outputs: {}'.format(batch_idx, np_pred_classes))
 
-            if (batch_idx < 1) and (self._torch2np(loss) < 100):
-                # show_batch_simple(np_inputs, np_targets)
-                # show_onset_counter_predictions(inputs, targets, self.net)
-                # show_onset_sequence_predictions(inputs, targets, self.net)
-                pass
-
             current_batch_results = collections.OrderedDict()
             current_batch_results['loss'] = self._torch2np(loss)
+            current_batch_metrics = self._evaluate_clf(np_pred_classes, np_target_classes)
+            for k, v in current_batch_metrics.items():
+                current_batch_results[k] = v
 
-            validation_results[batch_idx] = current_batch_results
+            # ...let's not collect batchwise evaluation metrics.
+            # validation_results[batch_idx] = current_batch_results
+            validation_preds[batch_idx] = np_pred
+            validation_targets[batch_idx] = np_targets
+
+            agg_pred_classes.extend(np_pred_classes)
+            agg_target_classes.extend(np_target_classes)
 
         # # Dumping output images -- only with detector
         # if detector is not None:
@@ -661,7 +654,23 @@ class PyTorchNetwork(object):
         #                                          validation_prob_masks,
         #                                          validation_pred_labels)
 
+        # Here we compute aggregate results.
+        agg_metrics = self._evaluate_clf(agg_pred_classes, agg_target_classes)
+        for k, v in agg_metrics.items():
+            validation_results[k] = v
+
         return validation_results
+
+    def _evaluate_clf(self, pred_classes, true_classes):
+        from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+        accuracy = accuracy_score(true_classes, pred_classes)
+        precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes,
+                                                                               pred_classes)
+        return {'acc': accuracy,
+                'prec': precision,
+                'rec': recall,
+                'fsc': f_score,
+                'support': true_sum}
 
     def update_learning_rate(self, optimizer, multiplier):
         for param_group in optimizer.param_groups:
