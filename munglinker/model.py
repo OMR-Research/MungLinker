@@ -662,6 +662,8 @@ class PyTorchNetwork(object):
         agg_metrics = self._evaluate_clf(agg_pred_classes, agg_target_classes)
         for k, v in agg_metrics.items():
             validation_results[k] = v
+        agg_loss = numpy.mean(losses)
+        validation_results['loss'] = agg_loss
 
         return validation_results
 
