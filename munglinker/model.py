@@ -5,6 +5,7 @@ from __future__ import print_function, unicode_literals, division
 import collections
 import logging
 import os
+import pprint
 import sys
 import time
 
@@ -400,9 +401,9 @@ class PyTorchNetwork(object):
                     va_epoch = self._validate_epoch(data['valid'],
                                                     batch_iters['valid'],
                                                     loss_fn, training_strategy)
-                    _, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
+                    # _, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
 
-                    va_loss = va_epoch_agg['loss']
+                    va_loss = va_epoch['loss']
                     va_losses.append(va_loss)
 
                     print('Validation results: {}'.format(pprint.pformat(va_epoch)))
@@ -478,18 +479,19 @@ class PyTorchNetwork(object):
                         va_results.append(va_epoch)
 
                         # (Aggregate across images, macro-averages per label and overall)
-                        va_epoch_agg_l, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
-
-                        self.print_validation_results(va_epoch_agg_l, va_epoch_agg)
+                        # va_epoch_agg_l, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
+                        #
+                        # self.print_validation_results(va_epoch_agg_l, va_epoch_agg)
 
                         # Log results to TensorBoard
                         if self._tb is not None:
                             # Log epoch results to tensorboard.
-                            # Training results:
-                            self.log_epoch_to_tb(epoch_idx,
-                                                 tr_epoch,
-                                                 va_epoch_agg,
-                                                 va_epoch_agg_l)
+                            raise NotImplementedError()
+                            # # Training results:
+                            # self.log_epoch_to_tb(epoch_idx,
+                            #                      tr_epoch,
+                            #                      va_epoch_agg,
+                            #                      va_epoch_agg_l)
 
                         break
 
@@ -596,6 +598,7 @@ class PyTorchNetwork(object):
 
         agg_pred_classes = []
         agg_target_classes = []
+        losses = []
 
         for batch_idx in range(n_batches):
             # if detector is not None:
@@ -615,14 +618,15 @@ class PyTorchNetwork(object):
             np_target_classes = targets2classes(np_targets)
 
             loss = loss_fn(pred, targets)
+            losses.append(self._torch2np(loss))
 
             if batch_idx < 5:
                 # This will get relegated to logging; for now
                 # we print directly.
                 np_pred_classes = targets2classes(np_pred)
                 np_target_classes = targets2classes(np_targets)
-                print('\t{}: Targets: {}'.format(batch_idx, np_target_classes))
-                print('\t{}: Outputs: {}'.format(batch_idx, np_pred_classes))
+                print('\t{}: Targets: {}'.format(batch_idx, np_targets))
+                print('\t{}: Outputs: {}'.format(batch_idx, np_pred))
 
             current_batch_results = collections.OrderedDict()
             current_batch_results['loss'] = self._torch2np(loss)
