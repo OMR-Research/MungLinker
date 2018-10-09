@@ -250,6 +250,8 @@ class PairwiseMungoDataPool:
                 self.train_entities.append([i_doc, n_entities])
                 n_entities += 1
 
+        self.reset_batch_generator()
+
         # n_items x n_outputs x
         self.shape = [len(self.train_entities)]
 
