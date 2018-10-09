@@ -129,6 +129,7 @@ def get_object_pairs(cropobjects,
 class MunglinkerDataError(ValueError):
     pass
 
+
 class PairwiseMungoDataPool(object):
     """This class implements the basic data pool for munglinker experiments
     that outputs just pairs of MuNG nodes from the same document. Using this
@@ -269,6 +270,8 @@ class PairwiseMungoDataPool(object):
                 try:
                     self.prepare_train_patch(i_doc, m_from, m_to)
                 except MunglinkerDataError:
+                    logging.info('Object pair {} --> {} does not fit within patch; skipped.'
+                                 ''.format(m_from.uid, m_to.uid))
                     continue
 
                 self._mungo_pair_map.append((m_from, m_to))
