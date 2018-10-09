@@ -333,10 +333,10 @@ class PairwiseMungoDataPool(object):
 
         bbox_of_f_wrt_patch = bbox_intersection(mungo_from.bounding_box, bbox_patch)
         if bbox_of_f_wrt_patch is None:
-            raise ValueError('Cannot generate patch for given FROM object {}/{}'
-                             ' -- no intersection with patch {}!'
-                             ''.format(mungo_from.uid, mungo_from.bounding_box,
-                                       bbox_patch))
+            raise MunglinkerDataError('Cannot generate patch for given FROM object {}/{}'
+                                      ' -- no intersection with patch {}!'
+                                      ''.format(mungo_from.uid, mungo_from.bounding_box,
+                                                bbox_patch))
         bbox_of_patch_wrt_f = bbox_intersection(bbox_patch, mungo_from.bounding_box)
 
         f_mask_t, f_mask_l, f_mask_b, f_mask_r = bbox_of_f_wrt_patch
@@ -349,10 +349,10 @@ class PairwiseMungoDataPool(object):
 
         bbox_of_t_wrt_patch = bbox_intersection(mungo_to.bounding_box, bbox_patch)
         if bbox_of_t_wrt_patch is None:
-            raise ValueError('Cannot generate patch for given TO object {}/{}'
-                             ' -- no intersection with patch {}!'
-                             ''.format(mungo_to.uid, mungo_to.bounding_box,
-                                       bbox_patch))
+            raise MunglinkerDataError('Cannot generate patch for given TO object {}/{}'
+                                      ' -- no intersection with patch {}!'
+                                      ''.format(mungo_to.uid, mungo_to.bounding_box,
+                                                bbox_patch))
         bbox_of_patch_wrt_t = bbox_intersection(bbox_patch, mungo_to.bounding_box)
 
         t_mask_t, t_mask_l, t_mask_b, t_mask_r = bbox_of_t_wrt_patch
