@@ -89,7 +89,7 @@ def build_argument_parser():
                         help='Number of steps without improvement in validation'
                              ' loss after which the learning rate is attenuated.')
 
-    parser.add_argument('--n_epochs_per_checkpoint', type=int, default=100,
+    parser.add_argument('--n_epochs_per_checkpoint', type=int, default=5,
                         help='Make a checkpoint of the model every N epochs.'
                              ' The checkpoint goes under the same name as -e.')
     parser.add_argument('--continue_training', action='store_true',

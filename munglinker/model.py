@@ -394,20 +394,22 @@ class PyTorchNetwork(object):
                 print('\nValidating epoch {}'.format(epoch_idx))
 
                 if (epoch_idx + 1) % training_strategy.n_epochs_per_checkpoint != 0:
+                    pass
+
                     ##################################################################
-                    # Outside checkpoint.
-                    # Only run validation without detector, to track validation loss
-                    # for early-stopping & refinement
-                    va_epoch = self._validate_epoch(data['valid'],
-                                                    batch_iters['valid'],
-                                                    loss_fn, training_strategy)
-                    # _, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
-
-                    va_loss = va_epoch['loss']
-                    va_losses.append(va_loss)
-
-                    print('Validation results: {}'.format(pprint.pformat(va_epoch)))
-                    # print('\tValidation loss: {0:.6f}'.format(va_loss))
+                    # # Outside checkpoint.
+                    # # Only run validation without detector, to track validation loss
+                    # # for early-stopping & refinement
+                    # va_epoch = self._validate_epoch(data['valid'],
+                    #                                 batch_iters['valid'],
+                    #                                 loss_fn, training_strategy)
+                    # # _, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
+                    #
+                    # va_loss = va_epoch['loss']
+                    # va_losses.append(va_loss)
+                    #
+                    # print('Validation results: {}'.format(pprint.pformat(va_epoch)))
+                    # # print('\tValidation loss: {0:.6f}'.format(va_loss))
 
                 else:
                     #########################################################
