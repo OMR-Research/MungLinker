@@ -26,14 +26,14 @@ THRESHOLD_NEGATIVE_DISTANCE = 200
 MAX_NEGATIVE_EXAMPLES_PER_OBJECT = None
 
 # The size of the image patches that are ouptut
-PATCH_HEIGHT = 128
-PATCH_WIDTH = 256
+PATCH_HEIGHT = 256
+PATCH_WIDTH = 512
 
 # The rescaling factor that is applied before the patch is extracted
 # (In effect, setting this to 0.5 downscales by a factor of 2, so
 #  the effective window w.r.t. the input image will be twice the specified
 #  PATCH_HEIGHT, PATCH_WIDTH.)
-IMAGE_ZOOM = 0.8
+IMAGE_ZOOM = 1.0
 
 # Randomly moves the patch this many pixels away from the midpoint
 # between the two sampled objects.
@@ -126,6 +126,8 @@ def get_object_pairs(cropobjects,
 
 ##############################################################################
 
+class MunglinkerDataError(ValueError):
+    pass
 
 class PairwiseMungoDataPool(object):
     """This class implements the basic data pool for munglinker experiments
@@ -208,9 +210,7 @@ class PairwiseMungoDataPool(object):
                                   self.patch_height, self.patch_width))
         targets = np.zeros(len(batch_entities))
         for i_entity, (i_image, i_mungo_pair) in enumerate(batch_entities):
-
             m_from, m_to = self._mungo_pair_map[i_mungo_pair]
-
             patch = self.prepare_train_patch(i_image, m_from, m_to)
             patches_batch[i_entity] = patch
 
@@ -264,6 +264,13 @@ class PairwiseMungoDataPool(object):
                 max_object_distance=self.max_edge_length,
                 max_negative_samples=self.max_negative_samples)
             for (m_from, m_to) in object_pairs:
+                # Try extracting a target patch. If this fails, don't add
+                # the entity.
+                try:
+                    self.prepare_train_patch(i_doc, m_from, m_to)
+                except MunglinkerDataError:
+                    continue
+
                 self._mungo_pair_map.append((m_from, m_to))
                 self.train_entities.append([i_doc, n_entities])
                 n_entities += 1
@@ -310,12 +317,12 @@ class PairwiseMungoDataPool(object):
 
         try:
             output[0][i_patch_t:i_patch_b, i_patch_l:i_patch_r] = image_crop
-        except ValueError:
+        except ValueError as e:
             print('Image shape: {}'.format(image.shape))
             print('Patch bbox:  {}'.format(bbox_patch))
             print('bbox_of_image_wrt_patch: {}'.format(bbox_of_image_wrt_patch))
             print('bbox_of_patch_wrt_image: {}'.format(bbox_of_patch_wrt_image))
-            raise
+            raise MunglinkerDataError(e)
 
         if output[0].max() > 1.0:
             output[0] = output[0] / output[0].max()

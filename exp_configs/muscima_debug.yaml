@@ -10,7 +10,7 @@ PATCH_WIDTH: 512
 # (In effect, setting this to 0.5 downscales by a factor of 2, so
 #  the effective window w.r.t. the input image will be twice the specified
 #  PATCH_HEIGHT, PATCH_WIDTH.)
-IMAGE_ZOOM: 0.5
+IMAGE_ZOOM: 1.0
 
 # Randomly moves the patch this many pixels away from the midpoint
 # between the two sampled objects.
