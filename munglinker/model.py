@@ -625,8 +625,8 @@ class PyTorchNetwork(object):
                 # we print directly.
                 np_pred_classes = targets2classes(np_pred)
                 np_target_classes = targets2classes(np_targets)
-                print('\t{}: Targets: {}'.format(batch_idx, np_targets[:10]))
-                print('\t{}: Outputs: {}'.format(batch_idx, np_pred[:10]))
+                logging.debug('\t{}: Targets: {}'.format(batch_idx, np_targets[:10]))
+                logging.debug('\t{}: Outputs: {}'.format(batch_idx, np_pred[:10]))
 
             current_batch_results = collections.OrderedDict()
             current_batch_results['loss'] = self._torch2np(loss)

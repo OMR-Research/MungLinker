@@ -2,6 +2,7 @@
 """This is a script that..."""
 from __future__ import print_function, unicode_literals
 import argparse
+import copy
 import logging
 import os
 import random
@@ -91,8 +92,8 @@ def negative_example_pairs(cropobjects,
 
         # Downsample,
     # but intelligently: there should be more weight on closer objects, as they should
-    # be represented more.
-    if max_per_object is not None:
+    # be represented more [NOT IMPLEMENTED].
+    if (max_per_object is not None) and (max_per_object > 0):
         for c in close_neighbors:
             random.shuffle(negative_example_pairs_dict[c])
             negative_example_pairs_dict[c] = negative_example_pairs_dict[c][:max_per_object]
@@ -546,6 +547,10 @@ def load_munglinker_data(mung_root, images_root, split_file,
          'max_patch_displacement': config['MAX_PATCH_DISPLACEMENT'],
          'balance_samples': False
         }
+        validation_data_pool_dict = copy.deepcopy(data_pool_dict)
+        if 'VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT' in config:
+            validation_data_pool_dict['max_negative_samples'] = \
+                config['VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT']
     else:
         data_pool_dict = {
          'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
@@ -555,6 +560,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
          'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
          'balance_samples': False
         }
+        validation_data_pool_dict = data_pool_dict
 
     if not test_only:
         tr_mungs, tr_images = load_munglinker_data_lite(mung_root, images_root,
@@ -567,7 +573,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
                                                         include_names=split['valid'],
                                                         exclude_classes=exclude_classes)
         va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images,
-                                        **data_pool_dict)
+                                        **validation_data_pool_dict)
     else:
         tr_pool = None
         va_pool = None
