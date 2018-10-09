@@ -26,14 +26,14 @@ THRESHOLD_NEGATIVE_DISTANCE = 200
 MAX_NEGATIVE_EXAMPLES_PER_OBJECT = None
 
 # The size of the image patches that are ouptut
-PATCH_HEIGHT = 256
-PATCH_WIDTH = 512
+PATCH_HEIGHT = 128
+PATCH_WIDTH = 256
 
 # The rescaling factor that is applied before the patch is extracted
 # (In effect, setting this to 0.5 downscales by a factor of 2, so
 #  the effective window w.r.t. the input image will be twice the specified
 #  PATCH_HEIGHT, PATCH_WIDTH.)
-IMAGE_ZOOM = 0.5
+IMAGE_ZOOM = 0.8
 
 # Randomly moves the patch this many pixels away from the midpoint
 # between the two sampled objects.
@@ -127,7 +127,7 @@ def get_object_pairs(cropobjects,
 ##############################################################################
 
 
-class PairwiseMungoDataPool:
+class PairwiseMungoDataPool(object):
     """This class implements the basic data pool for munglinker experiments
     that outputs just pairs of MuNG nodes from the same document. Using this
     pool means that your preparation function will have to deal with everything
@@ -185,8 +185,11 @@ class PairwiseMungoDataPool:
         self.patch_height = patch_size[0]
         self.patch_width = patch_size[1]
 
-        self.shape = None
+        self.zoom = zoom
+        self._zoom_images()
+        self._zoom_mungs()
 
+        self.shape = None
         self.prepare_train_entities()
 
         logging.info('Data pool prepared with shape {}'.format(self.shape))
@@ -195,7 +198,6 @@ class PairwiseMungoDataPool:
         return self.shape[0]
 
     def __getitem__(self, key):
-        # get batch
         if key.__class__ == int:
             key = slice(key, key + 1)
 
@@ -221,6 +223,22 @@ class PairwiseMungoDataPool:
                                     m_to.objid, m_to.clsname))
 
         return [patches_batch, targets]
+
+    def _zoom_images(self):
+        images_zoomed = []
+        import cv2
+        for image in self.images:
+            img_copy = image * 1.0
+            img_zoomed = cv2.resize(img_copy, dsize=None,
+                                    fx=self.zoom, fy=self.zoom).astype(image.dtype)
+            images_zoomed.append(img_zoomed)
+        self.images = images_zoomed
+
+    def _zoom_mungs(self):
+        for mung in self.mungs:
+            for m in mung.cropobjects:
+                if self.zoom is not None:
+                    m.scale(zoom=self.zoom)
 
     def reset_batch_generator(self):
         """Reset data pool with new random reordering of ``train_entities``.
