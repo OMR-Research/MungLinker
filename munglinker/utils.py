@@ -340,8 +340,13 @@ def targets2classes(targets):
     >>> x = np.array([[0.8, 0.2], [0.1, 0.9], [0.4, 0.6], [0.5, 0.5]])
     >>> targets2classes(x)
     array([0, 1, 1, 0])
+    >>> y = np.array([1, 0, 0, 1, 1])
+    >>> targets2classes(y)
+    array([1, 0, 0, 1, 1])
 
     """
+    if targets.ndim == 1:
+        return targets
     output = np.argmax(targets, axis=1)
     return output
 
