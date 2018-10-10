@@ -609,7 +609,7 @@ class PyTorchNetwork(object):
             np_inputs, np_targets = next(val_generator)
 
             inputs = Variable(torch.from_numpy(np_inputs).float())
-            targets = Variable(torch.from_numpy(np_targets).float())
+            targets = Variable(torch.from_numpy(np_targets).long())
             if self.cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
@@ -809,7 +809,7 @@ class PyTorchNetwork(object):
             # return Torch Variables, which the model can however
             # specify in its prepare() function(s).
             inputs = Variable(torch.from_numpy(np_inputs).float())
-            targets = Variable(torch.from_numpy(np_targets).float())
+            targets = Variable(torch.from_numpy(np_targets).long())
             if self.cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
