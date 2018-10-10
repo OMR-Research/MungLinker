@@ -314,7 +314,7 @@ class PyTorchNetwork(object):
         tr_results, va_results = [], []
 
         # Train and validation loss, for early stopping
-        tr_losses, va_losses = [], []
+        tr_losses, va_losses = [numpy.inf], [numpy.inf]
 
         # Early stopping
         last_improvement = 0
