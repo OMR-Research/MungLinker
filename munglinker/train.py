@@ -4,7 +4,7 @@ from __future__ import print_function, unicode_literals
 
 import torch, cv2
 from torch.autograd import Variable
-from torch.nn import BCEWithLogitsLoss, MSELoss, BCELoss
+from torch.nn import BCEWithLogitsLoss, MSELoss, BCELoss, CrossEntropyLoss
 from torch.optim import Adam, RMSprop
 from torch.nn.modules.loss import _Loss, _WeightedLoss, _assert_no_grad
 
@@ -178,7 +178,7 @@ def main(args):
     # ------------------------------------------------------------------------
     # Initializing the training strategy
 
-    loss_fn_cls = BCELoss
+    loss_fn_cls = CrossEntropyLoss
     loss_fn_kwargs = dict()
     # if args.focal_loss:
     #     loss_fn_cls = FocalLossElemwise

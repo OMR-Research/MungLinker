@@ -418,9 +418,9 @@ class PyTorchNetwork(object):
                                                     batch_iters['valid'],
                                                     loss_fn, training_strategy)
                     va_results.append(va_epoch)
-                    va_epoch_agg_l, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
+                    # va_epoch_agg_l, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
 
-                    self.print_validation_results(va_epoch_agg_l, va_epoch_agg)
+                    # self.print_validation_results(va_epoch_agg_l, va_epoch_agg)
 
                     if self._tb is not None:
                         print('Logging validation epoch results to tensorboard'
@@ -430,7 +430,7 @@ class PyTorchNetwork(object):
                         #                      va_epoch_agg,
                         #                      va_epoch_agg_l)
 
-                    va_loss = va_epoch_agg['loss']
+                    va_loss = va_epoch['loss']
                     va_losses.append(va_loss)
 
                 ##################################
