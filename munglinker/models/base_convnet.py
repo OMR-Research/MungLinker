@@ -132,10 +132,10 @@ def get_build_model():
 ##############################################################################
 
 
-def prepare_patch_and_target(patch, target, target_is_onehot=False):
+def prepare_patch_and_target(patch, target, target_is_onehot=True):
     """Does not do anything to patches.
 
-    Expands targets to two-way softmax format."""
+    :param target_is_onehot: Expands targets to two-way softmax format."""
     if target_is_onehot and (target.shape != (target.shape[0], 2)):
         target_for_softmax = np.zeros((target.shape[0], 2))
         target_for_softmax[range(target.shape[0]), target.astype('uint8')] = 1.0

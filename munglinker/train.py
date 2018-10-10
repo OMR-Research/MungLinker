@@ -178,7 +178,7 @@ def main(args):
     # ------------------------------------------------------------------------
     # Initializing the training strategy
 
-    loss_fn_cls = CrossEntropyLoss
+    loss_fn_cls = BCELoss
     loss_fn_kwargs = dict()
     # if args.focal_loss:
     #     loss_fn_cls = FocalLossElemwise
