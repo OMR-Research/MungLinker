@@ -433,6 +433,8 @@ class PyTorchNetwork(object):
                     va_loss = va_epoch['loss']
                     va_losses.append(va_loss)
 
+                    print('Validation results: {}'.format(pprint.pformat(va_epoch)))
+
                 ##################################
                 # Log validation loss
 
