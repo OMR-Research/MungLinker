@@ -132,13 +132,15 @@ def get_build_model():
 ##############################################################################
 
 
-def prepare_patch_and_target(patch, target):
+def prepare_patch_and_target(patch, target, target_is_onehot=False):
     """Does not do anything to patches.
 
     Expands targets to two-way softmax format."""
-    if target.shape != (target.shape[0], 2):
+    if target_is_onehot and (target.shape != (target.shape[0], 2)):
         target_for_softmax = np.zeros((target.shape[0], 2))
         target_for_softmax[range(target.shape[0]), target.astype('uint8')] = 1.0
+    elif (not target_is_onehot) and (target.ndim > 1):
+        target_for_softmax = np.argmax(target, axis=1)
     else:
         target_for_softmax = target
 
