@@ -11,9 +11,10 @@ import time
 import numpy as np
 import yaml
 from muscima.cropobject import cropobject_distance, bbox_intersection
-from muscima.io import parse_cropobject_list
+from muscima.io import parse_cropobject_list, parse_cropobject_class_list
 from muscima.graph import NotationGraph
 from muscima.inference_engine_constants import _CONST
+from muscima.grammar import DependencyGrammar
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -83,13 +84,33 @@ def get_close_objects(dists, threshold=100):
 
 def negative_example_pairs(cropobjects,
                            threshold=THRESHOLD_NEGATIVE_DISTANCE,
-                           max_per_object=MAX_NEGATIVE_EXAMPLES_PER_OBJECT):
+                           max_per_object=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+                           grammar=None):
+    """Samples pairs of cropobjects that are *not* connected by an edge.
+
+    :param cropobjects: A list of MuNG objects available for pair sampling.
+
+    :param threshold: Maximum distance for a pair of MuNGos to be considered.
+
+    :param max_per_object: At most this many negative samples will be output
+        per object.
+
+    :param grammar: If given, will only add negative pairs such that an edge
+        between them would be permitted by the grammar.
+
+    :return: A list of tuples of (from, to) MuNG objects that are *not* linked.
+    """
     dists = symbol_distances(cropobjects)
     close_neighbors = get_close_objects(dists, threshold=threshold)
     # Exclude linked ones
     negative_example_pairs_dict = {}
     for c in close_neighbors:
         negative_example_pairs_dict[c] = [d for d in close_neighbors[c] if d.objid not in c.outlinks]
+
+        # Filter with grammar.
+        if grammar is not None:
+            negative_example_pairs_dict[c] = [d for d in negative_example_pairs_dict[c]
+                                              if grammar.validate_edge(c.clsname, d.clsname)]
 
     # Downsample,
     # -----------
@@ -118,11 +139,13 @@ def positive_example_pairs(cropobjects):
 
 def get_object_pairs(cropobjects,
                      max_object_distance=THRESHOLD_NEGATIVE_DISTANCE,
-                     max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT):
+                     max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+                     grammar=None):
 
     negs = negative_example_pairs(cropobjects,
                                   threshold=max_object_distance,
-                                  max_per_object=max_negative_samples)
+                                  max_per_object=max_negative_samples,
+                                  grammar=grammar)
     poss = positive_example_pairs(cropobjects)
     logging.info('Object pair extraction: positive: {}, negative: {}'
                  ''.format(len(poss), len(negs)))
@@ -149,6 +172,7 @@ class PairwiseMungoDataPool(object):
                  max_edge_length=THRESHOLD_NEGATIVE_DISTANCE,
                  max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
                  resample_train_entities=False,
+                 grammar=None,
                  patch_size=(PATCH_HEIGHT, PATCH_WIDTH),
                  zoom=IMAGE_ZOOM,
                  max_patch_displacement=MAX_PATCH_DISPLACEMENT,
@@ -206,6 +230,8 @@ class PairwiseMungoDataPool(object):
         self.zoom = zoom
         self._zoom_images()
         self._zoom_mungs()
+
+        self.grammar = grammar
 
         self.shape = None
         self.prepare_train_entities()
@@ -288,7 +314,8 @@ class PairwiseMungoDataPool(object):
             object_pairs = get_object_pairs(
                 mung.cropobjects,
                 max_object_distance=self.max_edge_length,
-                max_negative_samples=self.max_negative_samples)
+                max_negative_samples=self.max_negative_samples,
+                grammar=self.grammar)
             for (m_from, m_to) in object_pairs:
                 # Try extracting a target patch. If this fails, don't add
                 # the entity.
@@ -455,6 +482,13 @@ def load_config(config_file):
     return config
 
 
+def load_grammar(filename):
+    mungo_classes_file = os.path.splitext(filename)[0] + '.xml'
+    mlclass_dict = {m.clsid: m for m in parse_cropobject_class_list(mungo_classes_file)}
+    g = DependencyGrammar(grammar_filename=filename, alphabet=list(mlclass_dict.keys()))
+    return g
+
+
 def load_munglinker_data_lite(mung_root, images_root,
                               include_names=None,
                               max_items=None, exclude_classes=None):
@@ -570,6 +604,14 @@ def load_munglinker_data(mung_root, images_root, split_file,
          'max_patch_displacement': config['MAX_PATCH_DISPLACEMENT'],
          'balance_samples': False
         }
+
+        if 'RESTRICT_TO_GRAMMAR' in config:
+            grammar_path = os.path.join(os.path.dirname(os.path.abspath(config_file)),
+                                        config['RESTRICT_TO_GRAMMAR'])
+            if os.path.isfile(grammar_path):
+                grammar = load_grammar(grammar_path)
+                data_pool_dict['grammar'] = grammar
+
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False
         if 'VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT' in config:
@@ -639,11 +681,15 @@ def main(args):
     mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
     images_root = '/Users/hajicj/data/MUSCIMA++/v0.9/data/fulls'
 
+    resources_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../resources')
+    grammar_file = os.path.join(resources_root, 'mff-muscima-mlclasses-annot.deprules')
+    grammar = load_grammar(grammar_file)
+
     mungs, images = load_munglinker_data_lite(mung_root, images_root,
                                               max_items=1,
                                               exclude_classes=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
 
-    data_pool = PairwiseMungoDataPool(mungs=mungs, images=images)
+    data_pool = PairwiseMungoDataPool(mungs=mungs, images=images, grammar=grammar)
     print('Entities after loading data pool: {}'.format(len(data_pool.train_entities)))
 
     import matplotlib.pyplot as plt

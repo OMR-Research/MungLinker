@@ -1,0 +1,73 @@
+##############################################################################
+This is the dependency grammar for the default annotations symbols.
+
+
+##############################################################################
+# Noteheads
+# (no notehead-to-text attachment)
+
+notehead-* | sharp flat stem dot
+notehead-full | *_flag beam
+
+notehead-* | ornament
+notehead-* | fermata
+
+
+# Aggregate cardinalities
+
+notehead-full{1,} |
+
+| beam{1,} stem{1,}
+| dot{1,}
+| sharp{1,} flat{1,}
+| *_flag{1,}
+
+
+##############################################################################
+# Composites
+
+longa* | sharp flat stem dot notehead-*
+*brevis | sharp flat stem dot notehead-*
+*minimia | sharp flat stem dot notehead-*
+coloured_* | sharp flat stem dot notehead-*
+
+
+##############################################################################
+# Rests
+
+
+*_rest | dot
+*_rest | fermata
+
+
+##############################################################################
+# Notations
+
+ornament | sharp flat
+| ornament{1,}
+
+
+##############################################################################
+# Part defaults
+
+key_signature | sharp flat
+key_signature{1,} |
+
+time_signature | common_time cut_time proportio_maior proportio_minor
+time_signature{1,} |
+| common_time{1,} cut_time{1,} proportio_maior{1,} proportio_minor{1,}
+
+
+##############################################################################
+# Staff rules
+
+staff | staff_line staff_space
+key_signature time_signature g_clef c_clef f_clef_1 f_clef_2 | staff
+
+notehead-* | staff_line staff_space staff
+*_rest | staff
+
+| staff_line{1,}
+| staff_space{1,}
+
+
