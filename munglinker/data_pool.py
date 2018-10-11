@@ -25,6 +25,7 @@ __author__ = "Jan Hajic jr."
 # Data point sampling parameters
 THRESHOLD_NEGATIVE_DISTANCE = 200
 MAX_NEGATIVE_EXAMPLES_PER_OBJECT = None
+RESAMPLE_EACH_EPOCH = False
 
 # The size of the image patches that are ouptut
 PATCH_HEIGHT = 256
@@ -90,17 +91,20 @@ def negative_example_pairs(cropobjects,
     for c in close_neighbors:
         negative_example_pairs_dict[c] = [d for d in close_neighbors[c] if d.objid not in c.outlinks]
 
-        # Downsample,
+    # Downsample,
+    # -----------
     # but intelligently: there should be more weight on closer objects, as they should
-    # be represented more [NOT IMPLEMENTED].
+    # be represented more (should they?) [NOT IMPLEMENTED].
     if (max_per_object is not None) and (max_per_object > 0):
         for c in close_neighbors:
             random.shuffle(negative_example_pairs_dict[c])
             negative_example_pairs_dict[c] = negative_example_pairs_dict[c][:max_per_object]
-    negative_example_pairs = []
+
+    negative_examples = []
     for c in negative_example_pairs_dict:
-        negative_example_pairs.extend([(c, d) for d in negative_example_pairs_dict[c]])
-    return negative_example_pairs
+        negative_examples.extend([(c, d) for d in negative_example_pairs_dict[c]])
+
+    return negative_examples
 
 
 def positive_example_pairs(cropobjects):
@@ -144,6 +148,7 @@ class PairwiseMungoDataPool(object):
     def __init__(self, mungs, images,
                  max_edge_length=THRESHOLD_NEGATIVE_DISTANCE,
                  max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+                 resample_train_entities=False,
                  patch_size=(PATCH_HEIGHT, PATCH_WIDTH),
                  zoom=IMAGE_ZOOM,
                  max_patch_displacement=MAX_PATCH_DISPLACEMENT,
@@ -163,6 +168,13 @@ class PairwiseMungoDataPool(object):
 
         :param max_negative_samples: The maximum number of mungos sampled
             as negative examples per mungo.
+
+        :param resample_train_entities: If set, will re-run training entity
+            sampling after the pool is exhausted. Intended to be used in
+            combination with a lower number of negative samples per positive
+            one, so that the network sees a lot of different negative
+            samples while you still have control over the positive/negative
+            sample balance.
 
         :param patch_size: What the size of the extracted patch should
             be (after applying zoom), specified as ``(rows, columns)``.
@@ -185,6 +197,8 @@ class PairwiseMungoDataPool(object):
         self.max_edge_length = max_edge_length
         self.max_negative_samples = max_negative_samples
 
+        self.resample_train_entities = resample_train_entities
+
         self.patch_size = patch_size
         self.patch_height = patch_size[0]
         self.patch_width = patch_size[1]
@@ -195,6 +209,7 @@ class PairwiseMungoDataPool(object):
 
         self.shape = None
         self.prepare_train_entities()
+        self.reset_batch_generator(ignore_resample=True)
 
         logging.info('Data pool prepared with shape {}'.format(self.shape))
 
@@ -207,12 +222,16 @@ class PairwiseMungoDataPool(object):
 
         batch_entities = self.train_entities[key]
 
-        # Return the patches
+        # Return the patches, targets, and the MuNGos themselves
         patches_batch = np.zeros((len(batch_entities), 3,
                                   self.patch_height, self.patch_width))
         targets = np.zeros(len(batch_entities))
+        mungos_from = []
+        mungos_to = []
         for i_entity, (i_image, i_mungo_pair) in enumerate(batch_entities):
             m_from, m_to = self._mungo_pair_map[i_mungo_pair]
+            mungos_from.append(m_from)
+            mungos_to.append(m_to)
             patch = self.prepare_train_patch(i_image, m_from, m_to)
             patches_batch[i_entity] = patch
 
@@ -224,7 +243,7 @@ class PairwiseMungoDataPool(object):
                                     m_from.objid, m_from.clsname,
                                     m_to.objid, m_to.clsname))
 
-        return [patches_batch, targets]
+        return [mungos_from, mungos_to, patches_batch, targets]
 
     def _zoom_images(self):
         images_zoomed = []
@@ -242,9 +261,14 @@ class PairwiseMungoDataPool(object):
                 if self.zoom is not None:
                     m.scale(zoom=self.zoom)
 
-    def reset_batch_generator(self):
+    def reset_batch_generator(self, ignore_resample=False):
         """Reset data pool with new random reordering of ``train_entities``.
         """
+        # Resampling negative samples every epoch should be implemented here.
+        if self.resample_train_entities and not ignore_resample:
+            logging.info('Resampling data pool.')
+            self.prepare_train_entities()
+
         permutation = [int(i) for i in np.random.permutation(len(self.train_entities))]
         shuffled_train_entities = [self.train_entities[idx] for idx in permutation]
         self.train_entities = shuffled_train_entities
@@ -278,8 +302,6 @@ class PairwiseMungoDataPool(object):
                 self._mungo_pair_map.append((m_from, m_to))
                 self.train_entities.append([i_doc, n_entities])
                 n_entities += 1
-
-        self.reset_batch_generator()
 
         # n_items x n_outputs x
         self.shape = [len(self.train_entities)]
@@ -542,12 +564,14 @@ def load_munglinker_data(mung_root, images_root, split_file,
         data_pool_dict = {
          'max_edge_length': config['THRESHOLD_NEGATIVE_DISTANCE'],
          'max_negative_samples': config['MAX_NEGATIVE_EXAMPLES_PER_OBJECT'],
+         'resample_train_entities': config['RESAMPLE_EACH_EPOCH'],
          'patch_size': (config['PATCH_HEIGHT'], config['PATCH_WIDTH']),
          'zoom': config['IMAGE_ZOOM'],
          'max_patch_displacement': config['MAX_PATCH_DISPLACEMENT'],
          'balance_samples': False
         }
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
+        validation_data_pool_dict['resample_train_entities'] = False
         if 'VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT' in config:
             validation_data_pool_dict['max_negative_samples'] = \
                 config['VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT']
@@ -555,12 +579,14 @@ def load_munglinker_data(mung_root, images_root, split_file,
         data_pool_dict = {
          'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
          'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+         'resample_train_entities': RESAMPLE_EACH_EPOCH,
          'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
          'zoom': IMAGE_ZOOM,
          'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
          'balance_samples': False
         }
-        validation_data_pool_dict = data_pool_dict
+        validation_data_pool_dict = copy.deepcopy(data_pool_dict)
+        validation_data_pool_dict['resample_train_entities'] = False
 
     if not test_only:
         tr_mungs, tr_images = load_munglinker_data_lite(mung_root, images_root,

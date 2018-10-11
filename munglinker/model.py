@@ -624,7 +624,7 @@ class PyTorchNetwork(object):
             loss = loss_fn(pred, targets)
             losses.append(self._torch2np(loss))
 
-            if batch_idx < 5:
+            if batch_idx < 3:
                 # This will get relegated to logging; for now
                 # we print directly.
                 np_pred_classes = targets2classes(np_pred)

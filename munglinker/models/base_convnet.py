@@ -79,7 +79,7 @@ class BaseConvnet(nn.Module):
             else:
                 cnn.add_module('relu{0}'.format(i), nn.ReLU(True))
 
-        # Input size expected (n_batch x 1 x MIDI_N_PITCHES x MIDI_MAX_LEN),
+        # Input size expected (n_batch x n_channels x MIDI_N_PITCHES x MIDI_MAX_LEN),
         # which is by default (n_batch x 3 x 256 x 512)
         convRelu(0)
         cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 8 x 128 x 256
@@ -132,19 +132,21 @@ def get_build_model():
 ##############################################################################
 
 
-def prepare_patch_and_target(patch, target, target_is_onehot=True):
+def prepare_patch_and_target(mungos_from, mungos_to, patches, targets,
+                             target_is_onehot=True):
     """Does not do anything to patches.
 
-    :param target_is_onehot: Expands targets to two-way softmax format."""
-    if target_is_onehot and (target.shape != (target.shape[0], 2)):
-        target_for_softmax = np.zeros((target.shape[0], 2))
-        target_for_softmax[range(target.shape[0]), target.astype('uint8')] = 1.0
-    elif (not target_is_onehot) and (target.ndim > 1):
-        target_for_softmax = np.argmax(target, axis=1)
+    :param target_is_onehot: Expands targets to two-way softmax format.
+    """
+    if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
+        target_for_softmax = np.zeros((targets.shape[0], 2))
+        target_for_softmax[range(targets.shape[0]), targets.astype('uint8')] = 1.0
+    elif (not target_is_onehot) and (targets.ndim > 1):
+        target_for_softmax = np.argmax(targets, axis=1)
     else:
-        target_for_softmax = target
+        target_for_softmax = targets
 
-    return patch, target_for_softmax
+    return patches, target_for_softmax
 
 
 ##############################################################################

@@ -2,6 +2,7 @@
 """This is a script that..."""
 from __future__ import print_function, unicode_literals
 import argparse
+import copy
 import logging
 import time
 
@@ -115,21 +116,21 @@ class PoolIterator(object):
             i_start = i * bs + idx_epoch * self.k_samples
             i_stop = (i + 1) * bs + idx_epoch * self.k_samples
             sl = slice(i_start, i_stop)
-            xb, yb = self.pool[sl]
+            pool_items = self.pool[sl]
 
             # When the data pool runs out: re-draw from beginning
-            if xb.shape[0] < self.batch_size:
-                n_missing = self.batch_size - xb.shape[0]
+            if len(pool_items[0]) < self.batch_size:
+                n_missing = self.batch_size - len(pool_items[0])
 
-                x_con, y_con = self.pool[0:n_missing]
+                additional_pool_items = self.pool[0:n_missing]
 
-                # Batch building: this is one spot that might need
-                # to get overriden if what the data pool provieds
-                # are not numpy-concatenable this way.
-                xb = np.concatenate((xb, x_con))
-                yb = np.concatenate((yb, y_con))
+                # Batch building: this is one spot that used to be
+                # pool-specific, but now the BatchIterator can deal with
+                # combining arbitrary pool outputs as long as they consist
+                # of a combination of lists and numpy arrays.
+                pool_items = self.combine_pool_items(pool_items, additional_pool_items)
 
-            yield self.transform(xb, yb)
+            yield self.transform(*pool_items)
 
         self.epoch_counter += 1
 
@@ -140,6 +141,41 @@ class PoolIterator(object):
     def transform(self, *args, **kwargs):
         return self.prepare(*args, **kwargs)
 
+    def combine_pool_items(self, *pool_items_list):
+        """Pool items are a tuple of entity batches. Supported "entity"
+        types are a list, or a numpy array."""
+        if len(pool_items_list) == 0:
+            return None
+        if len(pool_items_list) == 1:
+            return pool_items_list[0]
+
+        n_entities = len(pool_items_list[0])
+
+        for pool_items in pool_items_list:
+            if len(pool_items) != n_entities:
+                raise ValueError('Batch iterator cannnot combine pool items'
+                                 ' with different entity counts: {}'
+                                 ''.format(pool_items_list))
+
+        output = [copy.deepcopy(item) for item in pool_items_list[0]]
+        for item_idx, pool_item in enumerate(pool_items_list[1:]):
+            for e_idx, entity in enumerate(pool_item):
+                if isinstance(output[e_idx], list):
+                    if not isinstance(entity, list):
+                        raise TypeError('Entities have inconsistent types:'
+                                        ' in item 0 entity {} is a list, in item'
+                                        ' {} it is {}'.format(e_idx, item_idx + 1,
+                                                              type(entity)))
+                    output[e_idx].extend(entity)
+                elif isinstance(output[e_idx], np.ndarray):
+                    if not isinstance(entity, np.ndarray):
+                        raise TypeError('Entities have inconsistent types:'
+                                        ' in item 0 entity {} is a ndarray, in item'
+                                        ' {} it is {}'.format(e_idx, item_idx + 1,
+                                                              type(entity)))
+                    output[e_idx] = np.concatenate((output[e_idx], entity))
+
+        return output
 
 ##############################################################################
 
@@ -171,10 +207,12 @@ def main(args):
     mungs, images = load_munglinker_data_lite(mung_root, images_root,
                                               max_items=1,
                                               exclude_classes=_CONST.STAFF_CROPOBJECT_CLSNAMES)
-    data_pool = PairwiseMungoDataPool(mungs=mungs, images=images)
+    data_pool = PairwiseMungoDataPool(mungs=mungs, images=images,
+                                      resample_train_entities=True,
+                                      max_negative_samples=1)
     data_pool.reset_batch_generator()
 
-    train_batch_iter = model.train_batch_iterator(batch_size=6)
+    train_batch_iter = model.train_batch_iterator(batch_size=300)
 
     iterator = train_batch_iter(data_pool)
     generator = threaded_generator_from_iterator(iterator)
