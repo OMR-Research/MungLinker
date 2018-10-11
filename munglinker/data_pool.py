@@ -484,7 +484,7 @@ def load_config(config_file):
 
 def load_grammar(filename):
     mungo_classes_file = os.path.splitext(filename)[0] + '.xml'
-    mlclass_dict = {m.clsid: m for m in parse_cropobject_class_list(mungo_classes_file)}
+    mlclass_dict = {m.name: m for m in parse_cropobject_class_list(mungo_classes_file)}
     g = DependencyGrammar(grammar_filename=filename, alphabet=list(mlclass_dict.keys()))
     return g
 
