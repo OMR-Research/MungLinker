@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """This is a script that..."""
 from __future__ import print_function, unicode_literals
+
 import argparse
 import copy
 import logging
@@ -11,10 +12,12 @@ import time
 import numpy as np
 import yaml
 from muscima.cropobject import cropobject_distance, bbox_intersection
-from muscima.io import parse_cropobject_list, parse_cropobject_class_list
+from muscima.grammar import DependencyGrammar
 from muscima.graph import NotationGraph
 from muscima.inference_engine_constants import _CONST
-from muscima.grammar import DependencyGrammar
+from muscima.io import parse_cropobject_list, parse_cropobject_class_list
+
+from munglinker.utils import config2data_pool_dict, load_grammar
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -295,6 +298,10 @@ class PairwiseMungoDataPool(object):
             logging.info('Resampling data pool.')
             self.prepare_train_entities()
 
+        # Shuffling the train entities shuffles the order of indices
+        # into self._mungo_pair_map that contains the actual MuNGOs,
+        # and at the same time preserves the pairing of the MuNGo pairs
+        # to the respective images.
         permutation = [int(i) for i in np.random.permutation(len(self.train_entities))]
         shuffled_train_entities = [self.train_entities[idx] for idx in permutation]
         self.train_entities = shuffled_train_entities
@@ -482,13 +489,6 @@ def load_config(config_file):
     return config
 
 
-def load_grammar(filename):
-    mungo_classes_file = os.path.splitext(filename)[0] + '.xml'
-    mlclass_dict = {m.name: m for m in parse_cropobject_class_list(mungo_classes_file)}
-    g = DependencyGrammar(grammar_filename=filename, alphabet=list(mlclass_dict.keys()))
-    return g
-
-
 def load_munglinker_data_lite(mung_root, images_root,
                               include_names=None,
                               max_items=None, exclude_classes=None):
@@ -595,22 +595,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
 
     if config_file is not None:
         config = load_config(config_file)
-        data_pool_dict = {
-         'max_edge_length': config['THRESHOLD_NEGATIVE_DISTANCE'],
-         'max_negative_samples': config['MAX_NEGATIVE_EXAMPLES_PER_OBJECT'],
-         'resample_train_entities': config['RESAMPLE_EACH_EPOCH'],
-         'patch_size': (config['PATCH_HEIGHT'], config['PATCH_WIDTH']),
-         'zoom': config['IMAGE_ZOOM'],
-         'max_patch_displacement': config['MAX_PATCH_DISPLACEMENT'],
-         'balance_samples': False
-        }
-
-        if 'RESTRICT_TO_GRAMMAR' in config:
-            grammar_path = os.path.join(os.path.dirname(os.path.abspath(config_file)),
-                                        config['RESTRICT_TO_GRAMMAR'])
-            if os.path.isfile(grammar_path):
-                grammar = load_grammar(grammar_path)
-                data_pool_dict['grammar'] = grammar
+        data_pool_dict = config2data_pool_dict(config)
 
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False

@@ -254,6 +254,53 @@ class PyTorchNetwork(object):
         # Logging
         self._tb = None
 
+    def predict(self,
+                data_pool,
+                runtime_batch_iterator):
+        """Runs the model prediction. Expects a data pool and a runtime
+        batch iterator.
+
+        :param data_pool: The runtime data pool. It still produces targets
+            (these will be 0 in most cases...), but they are ignored. The
+            correct settings for a runtime pool are to (1) set negative sample
+            max to -1, so that all candidates within the threshold distance
+            get classified, (2) use a grammar to restrict candidate pairs,
+            (3) do *NOT* resample after epoch end.
+
+        :param runtime_batch_iterator: Batch iterator from a model's runtime.
+
+        :returns: A list of (mungo_pairs, predictions). After applying this
+            method, you will have to take care of actually adding the predicted
+            edges into the graphs -- split the MuNG pairs by documents, etc.
+        """
+        # Ensure correct data pool behavior.
+        data_pool.resample_train_entities = False
+
+        # Initialize data feeding from iterator
+        iterator = runtime_batch_iterator(data_pool)
+        generator = threaded_generator_from_iterator(iterator)
+
+        n_batches = len(data_pool) // runtime_batch_iterator.batch_size
+        print('n. of runtime entities: {}; batches: {}'
+              ''.format(len(data_pool), n_batches))
+
+        # Aggregate results
+        all_mungo_pairs = []
+        all_np_preds = numpy.array([])
+
+        # Run generator
+        for batch_idx, _data_point in enumerate(generator):
+            mungo_pairs, np_inputs = _data_point  # next(generator)
+            all_mungo_pairs.append(mungo_pairs)
+
+            inputs = self._np2torch(np_inputs)
+            pred = self.net(inputs)
+            np_pred = self._torch2np(pred)
+            numpy.concatenate((all_np_preds, np_pred))
+
+        all_np_pred_classes = targets2classes(all_np_preds)
+        return all_mungo_pairs, all_np_pred_classes
+
     def fit(self,
             data,
             batch_iters,
@@ -793,8 +840,8 @@ class PyTorchNetwork(object):
 
         # Monitors
         batch_train_losses = []
-        dice_thresholds = [0.1, 0.3, 0.5, 0.7, 0.9]
-        train_dices_per_threshold = {thr: [] for thr in dice_thresholds}
+        # dice_thresholds = [0.1, 0.3, 0.5, 0.7, 0.9]
+        # train_dices_per_threshold = {thr: [] for thr in dice_thresholds}
 
         # Time tracking
         _batch_times = numpy.zeros(5, dtype=numpy.float32)
@@ -825,14 +872,6 @@ class PyTorchNetwork(object):
 
             # Monitors update
             batch_train_losses.append(self._torch2np(loss))
-            if estimate_dices:
-                from mhr.experiments.fcn.evaluation import dice
-                np_preds = self._torch2np(preds)
-                for thr in dice_thresholds:
-                    for i in range(np_inputs.shape[0]):
-                        seg = np_preds[i] > thr
-                        train_dices_per_threshold[thr].append(dice(seg,
-                                                                   np_targets[i]))
 
             # Train time tracking update
             _batch_time = time.time() - _after
@@ -863,21 +902,14 @@ class PyTorchNetwork(object):
                 # show_onset_counter_predictions(inputs, targets, self.net)
                 # show_onset_sequence_predictions(inputs, targets, self.net)
 
-
-
         # Aggregate monitors
         avg_train_loss = numpy.mean(batch_train_losses)
-        if estimate_dices:
-            train_dices = {thr: numpy.mean(train_dices_per_threshold[thr])
-                           for thr in dice_thresholds}
 
         output = {
             'number': 0,
             'train_loss': avg_train_loss,
             'train_dices': None,
         }
-        if estimate_dices:
-            output['train_dices'] = train_dices
 
         return output
 

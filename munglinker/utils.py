@@ -2,6 +2,7 @@
 from __future__ import print_function, unicode_literals
 
 import copy
+import logging
 import os
 
 import pickle
@@ -10,6 +11,8 @@ import collections
 
 import datetime
 import numpy as np
+from muscima.grammar import DependencyGrammar
+from muscima.io import parse_cropobject_class_list
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -584,3 +587,44 @@ def show_onset_sequence_predictions(X_var, y_true_var, net, max_items=1):
     # plt.ylabel('')
 
     plt.show()
+
+
+def load_grammar(filename):
+    mungo_classes_file = os.path.splitext(filename)[0] + '.xml'
+    mlclass_dict = {m.name: m for m in parse_cropobject_class_list(mungo_classes_file)}
+    g = DependencyGrammar(grammar_filename=filename, alphabet=list(mlclass_dict.keys()))
+    return g
+
+
+def config2data_pool_dict(config):
+    """Prepare data pool kwargs from an exp_config dict.
+
+    Grammar file is loaded relative to the munglinker/ package."""
+    data_pool_dict = {
+        'max_edge_length': config['THRESHOLD_NEGATIVE_DISTANCE'],
+        'max_negative_samples': config['MAX_NEGATIVE_EXAMPLES_PER_OBJECT'],
+        'resample_train_entities': config['RESAMPLE_EACH_EPOCH'],
+        'patch_size': (config['PATCH_HEIGHT'], config['PATCH_WIDTH']),
+        'zoom': config['IMAGE_ZOOM'],
+        'max_patch_displacement': config['MAX_PATCH_DISPLACEMENT'],
+        'balance_samples': False
+    }
+
+    # Load grammar, if requested
+    if 'RESTRICT_TO_GRAMMAR' in config:
+        if not os.path.isfile(config['RESTRICT_TO_GRAMMAR']):
+            grammar_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                        config['RESTRICT_TO_GRAMMAR'])
+        else:
+            grammar_path = config['RESTRICT_TO_GRAMMAR']
+
+        if os.path.isfile(grammar_path):
+            grammar = load_grammar(grammar_path)
+            data_pool_dict['grammar'] = grammar
+        else:
+            logging.warning('Config contains grammar {}, but it is unreachable'
+                            ' both as an absolute path and relative to'
+                            ' the munglinker/ package. No grammar loaded.'
+                            ''.format(config['RESTRICT_TO_GRAMMAR']))
+
+    return data_pool_dict

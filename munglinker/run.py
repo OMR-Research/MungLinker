@@ -5,12 +5,16 @@ or a directory of input images, and outputs the corresponding MIDI file(s).
 from __future__ import print_function, unicode_literals
 import argparse
 import collections
+import copy
 import logging
 import os
 import time
 
 import numpy as np
 import pickle
+
+from muscima.graph import NotationGraph
+from muscima.io import parse_cropobject_list, export_cropobject_list
 from scipy.misc import imread, imsave
 
 from muscima.inference import play_midi
@@ -26,7 +30,9 @@ from munglinker.augmentation import ImageAugmentationProcessor
 # from munglinker.image_normalization import auto_invert, stretch_intensity
 # from munglinker.image_normalization import ImageNormalizer
 # from munglinker.utils import lasagne_fcn_2_pytorch_fcn
-from munglinker.utils import generate_random_mm
+from munglinker.data_pool import PairwiseMungoDataPool, load_config
+from munglinker.model import PyTorchNetwork
+from munglinker.utils import generate_random_mm, select_model, config2data_pool_dict
 from munglinker.utils import midi_matrix_to_midi
 
 __version__ = "0.0.1"
@@ -35,44 +41,73 @@ __author__ = "Jan Hajic jr."
 
 ##############################################################################
 
-class FakeModel(object):
-    """Mock E2E OMR model. The outptut representation
-    is a MIDI matrix: 128 rows, variable number of columns.
 
-    The run() method returns a random MIDI matrix."""
-    def run(self, image):
-        n_cols = image.shape[1]
-        random_mm = generate_random_mm((128, n_cols / 4), onset_density=100 / ((128 * n_cols) + 100))
-        return random_mm
-
-    def cuda(self):
-        pass
-
-
-class E2EOMRRunner(object):
-    """The E2EOMRRunner defines the end-to-end OMR interface. It has a run()
-    method that converts an image into MIDI, which is its main interface.
+class MunglinkerRunner(object):
+    """The MunglinkerRunner defines the Munglinker component interface. It has a run()
+    method that takes a MuNG (the whole graph) and outputs a new MuNG with the same
+    objects, but different edges.
     """
-    def __init__(self, model):
-        """Initialize the E2E OMR runner.
+    def __init__(self, model, config, runtime_batch_iterator,
+                 replace_all_edges=True):
+        """Initialize the Munglinker runner.
 
-        :param model: An instance that has a ``run(self, image)`` method
-            that accepts a 2-D numpy array and outputs a (2-D) MIDI matrix.
+        :param model: A PyTorchNetwork() object with a net. Its predict()
+            method is called, with a data pool that is constructed on the
+            fly from the provided images & mungs, and with the batch iterator
+            provided to this  __init__() method.
+
         """
         self.model = model
+        self.config = config
+        self.runtime_batch_iterator = runtime_batch_iterator
 
-    def run(self, staff_image):
+        # We pre-build the parameters that are used to wrap the input data
+        # into a data pool.
+        data_pool_dict = config2data_pool_dict(self.config)
+        data_pool_dict['max_negative_samples'] = -1
+        if 'grammar' not in data_pool_dict:
+            logging.warning('MunglinkerRunner expects a grammar to restrict'
+                            ' edge candidates. Without a grammar, it will take'
+                            ' a long time, since all possible object pairs'
+                            ' will be tried. (This is fine if you trained without'
+                            ' the grammar restriction, obviously.)')
+        self.data_pool_dict = data_pool_dict
+
+        self.replace_all_edges = replace_all_edges
+
+    def run(self, image, mung):
         """Processes the image and outputs MIDI.
 
         :returns: A ``midiutil.MidiFile.MIDIFile`` object.
         """
-        prep_image = self.prepare_image(staff_image)
-        output_repr = self.model.run(prep_image)
-        midi = self.model_output_to_midi(output_repr)
-        return midi
+        data_pool = self.build_data_pool(image, mung)
+        mungo_pairs, output_classes = self.model.predict(data_pool,
+                                                        self.runtime_batch_iterator)
+        # Since the runner only takes one image & MuNG at a time,
+        # we have the luxury that all the mung pairs belong to the same
+        # document, and we can just re-do the edges.
+        mungo_copies = [copy.deepcopy(m) for m in mung.cropobjects]
+        if self.replace_all_edges:
+            for m in mungo_copies:
+                m.outlinks = []
+                m.inlinks = []
 
-    def prepare_image(self, staff_image):
-        return staff_image
+        new_mung = NotationGraph(mungo_copies)
+        for mungo_pair, has_edge in zip(mungo_pairs, output_classes):
+            if has_edge:
+                mungo_fr, mungo_to = mungo_pair
+                new_mung.add_edge(mungo_fr.objid, mungo_to.objid)
+            else:
+                mungo_fr, mungo_to = mungo_pair
+                if new_mung.has_edge(mungo_fr.objid, mungo_to.objid):
+                    new_mung.remove_edge(mungo_fr.objid, mungo_to.objid)
+
+        return new_mung
+
+    def build_data_pool(self, image, mung):
+        data_pool = PairwiseMungoDataPool(mungs=[mung], images=[image],
+                                          **self.data_pool_dict)
+        return data_pool
 
     def model_output_to_midi(self, output_repr):
         return midi_matrix_to_midi(output_repr)
@@ -81,32 +116,8 @@ class E2EOMRRunner(object):
 ##############################################################################
 
 
-def show_result(img, midi_matrix):
-    import matplotlib.pyplot as plt
-
-    plt.figure()
-    plt.clf()
-
-    plt.subplot(2, 1, 1)
-    plt.imshow(img, cmap="gray")
-    plt.ylabel(img.shape[0])
-    plt.xlabel(img.shape[1])
-    # plt.colorbar()
-
-    # plt.subplot(3, 1, 2)
-    # plt.imshow(spec[0][0], cmap="viridis", origin="lower", aspect="auto")
-    # plt.ylabel(spec[0][0].shape[0])
-    # plt.xlabel(spec[0][0].shape[1])
-    # plt.colorbar()
-
-    plt.subplot(2, 1, 2)
-    plt.imshow(midi_matrix, cmap="gray", origin="lower", interpolation="nearest", aspect="auto")
-    plt.ylabel(midi_matrix.shape[0])
-    plt.xlabel(midi_matrix.shape[1])
-    plt.colorbar()
-
-    plt.show()
-
+def show_result(*args, **kwargs):
+    raise NotImplementedError()
 
 ##############################################################################
 
@@ -118,19 +129,30 @@ def build_argument_parser():
     parser.add_argument('-m', '--model', required=True,
                         help='The name of the model that you wish to use.')
     parser.add_argument('-p', '--params', required=True,
-                        help='The state dict that should be loaded for this model.')
+                        help='The state dict that should be loaded for this model.'
+                             ' Note that you have to make sure you are loading'
+                             ' a state dict for the right model architecture.')
+    parser.add_argument('-c', '--config_file', required=True,
+                        help='The config file that controls how inputs'
+                             ' to the network will be extracted from MuNGOs.')
 
-    parser.add_argument('-i', '--input_image',
+    parser.add_argument('-i', '--input_image', required=True,
                         help='A single-system input image for which MIDI should'
                              ' be output. This is the simplest input mode.')
-    parser.add_argument('-o', '--output_midi',
-                        help='The MIDI should be exported to this file.')
-    parser.add_argument('--play', action='store_true',
-                        help='If set, will play back the MIDI instead of saving'
-                             ' to file.')
+    parser.add_argument('-g', '--input_mung', required=True,
+                        help='A MuNG XML file. The edges inoinks/outlinks in'
+                             ' the file are ignored, unless the --retain_edges'
+                             ' flag is set [NOT IMPLEMENTED].')
+
+    parser.add_argument('-o', '--output_mung', required=True,
+                        help='The MuNG with inferred edges should be exported'
+                             ' to this file.')
 
     parser.add_argument('--visualize', action='store_true',
-                        help='If set, will plot the image and output MIDI.')
+                        help='If set, will plot the image and output MIDI'
+                             '[NOT IMPLEMENTED].')
+    parser.add_argument('--batch_size', type=int, action='store', default=10,
+                        help='The runtime iterator batch size.')
 
     parser.add_argument('--input_dir',
                         help='A directory with single-system input images. For'
@@ -155,44 +177,64 @@ def main(args):
     _start_time = time.clock()
 
     ##########################################################################
+    # First we prepare the model
 
-    logging.info('Loading model: {} [NOT IMPLEMENTED]'.format(args.model))
-    model = FakeModel()
+    logging.info('Loading config: {}'.format(args.config))
+    config = load_config(args.config)
 
-    logging.info('Loading model params from state dict: {0} [NOT IMPLEMENTED]'.format(args.params))
-    # params = torch.load(args.params)
-    # model.load_state_dict(params)
+    logging.info('Loading model: {}'.format(args.model))
+    model_mod = select_model(args.model)
+    build_model_fn = model_mod.get_build_model()
+    net = build_model_fn()
+
+    logging.info('Loading model params from state dict: {0}'.format(args.params))
+    params = torch.load(args.params)
+    net.load_state_dict(params)
 
     use_cuda = torch.cuda.is_available()
     if use_cuda:
         logging.info('\tModel: CUDA available, moving to GPU')
-        model.cuda()
+        net.cuda()
+
+    runtime_batch_iterator = model_mod.runtime_batch_iterator(batch_size=args.batch_size)
+
+    model = PyTorchNetwork(net=net, print_architecture=False)
+
+    ########################################################
+    # Now we run it
 
     logging.info('Initializing runner...')
-    runner = E2EOMRRunner(model=model)
+    runner = MunglinkerRunner(model=model,
+                              config=config,
+                              runtime_batch_iterator=runtime_batch_iterator,
+                              replace_all_edges=True)
 
     logging.info('Loading image: {}'.format(args.input_image))
     img = imread(args.input_image, mode='L')
 
+    logging.info('Loading MuNG: {}'.format(args.input_mung))
+    input_mungos = parse_cropobject_list(args.input_mung)
+    input_mung = NotationGraph(input_mungos)
+
     logging.info('Running OMR')
-    mf = runner.run(img)
-
-    if args.visualize:
-        midi_matrix = model.run(img)
-        show_result(img, midi_matrix)
-
-    if args.play:
-        logging.info('Playing output MIDI')
-        play_midi(mf,
-                  tmp_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                       'tmp'))
-
-    else:
-        logging.info('Saving output MIDI to {}'.format(args.output_midi))
-        with open(args.output_midi, 'wb') as hdl:
-            mf.writeFile(hdl)
+    output_mung = runner.run(img, input_mung)
 
     ##########################################################################
+    # And deal with the output:
+
+    if args.visualize:
+        logging.info('Visualization not implemented!!!')
+        pass
+
+    if args.play:
+        logging.info('Playback not implemented!!!')
+        pass
+
+    logging.info('Saving output MuNG to: {}'.format(args.output_mung))
+    with open(args.output_mung, 'w') as hdl:
+        hdl.write(export_cropobject_list(output_mung.cropobjects))
+
+    # No evaluation here.
 
     _end_time = time.clock()
     logging.info('run.py done in {0:.3f} s'.format(_end_time - _start_time))

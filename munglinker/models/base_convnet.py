@@ -165,8 +165,15 @@ def prepare_test(*args, **kwargs):
 
 
 def prepare_runtime(*args, **kwargs):
+    """At runtime, we return the MuNGOs explicitly, so that it is
+    straightforward to pair the prediction result without having
+    to deal with matching the predictions back to the data pool's
+    training entities.
+    """
+    mungos_from, mungos_to, _, _ = args
+    mungo_pairs = zip(mungos_from, mungos_to)
     X, _ = prepare_patch_and_target(*args, **kwargs)
-    return X
+    return mungo_pairs, X
 
 
 def train_batch_iterator(batch_size=BATCH_SIZE):
