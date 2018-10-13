@@ -132,7 +132,7 @@ def build_argument_parser():
                         help='The state dict that should be loaded for this model.'
                              ' Note that you have to make sure you are loading'
                              ' a state dict for the right model architecture.')
-    parser.add_argument('-c', '--config_file', required=True,
+    parser.add_argument('-c', '--config', required=True,
                         help='The config file that controls how inputs'
                              ' to the network will be extracted from MuNGOs.')
 
@@ -190,11 +190,6 @@ def main(args):
     logging.info('Loading model params from state dict: {0}'.format(args.params))
     params = torch.load(args.params)
     net.load_state_dict(params)
-
-    use_cuda = torch.cuda.is_available()
-    if use_cuda:
-        logging.info('\tModel: CUDA available, moving to GPU')
-        net.cuda()
 
     runtime_batch_iterator = model_mod.runtime_batch_iterator(batch_size=args.batch_size)
 
