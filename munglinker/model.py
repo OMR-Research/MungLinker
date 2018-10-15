@@ -291,12 +291,14 @@ class PyTorchNetwork(object):
         # Run generator
         for batch_idx, _data_point in enumerate(generator):
             mungo_pairs, np_inputs = _data_point  # next(generator)
-            all_mungo_pairs.append(mungo_pairs)
+
+            mungo_pairs = list(mungo_pairs)
+            all_mungo_pairs.extend(mungo_pairs)
 
             inputs = self._np2torch(np_inputs)
             pred = self.net(inputs)
             np_pred = self._torch2np(pred)
-            numpy.concatenate((all_np_preds, np_pred))
+            all_np_preds = numpy.concatenate((all_np_preds, np_pred))
 
         all_np_pred_classes = targets2classes(all_np_preds)
         return all_mungo_pairs, all_np_pred_classes

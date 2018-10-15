@@ -32,7 +32,8 @@ from munglinker.augmentation import ImageAugmentationProcessor
 # from munglinker.utils import lasagne_fcn_2_pytorch_fcn
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
 from munglinker.model import PyTorchNetwork
-from munglinker.utils import generate_random_mm, select_model, config2data_pool_dict
+from munglinker.mung2midi import build_midi
+from munglinker.utils import generate_random_mm, select_model, config2data_pool_dict, MockNetwork
 from munglinker.utils import midi_matrix_to_midi
 
 __version__ = "0.0.1"
@@ -56,6 +57,11 @@ class MunglinkerRunner(object):
             fly from the provided images & mungs, and with the batch iterator
             provided to this  __init__() method.
 
+        :param config: The configuration that was used to train the given model.
+            Contains important things like patch size.
+
+        :param runtime_batch_iterator: The prepared
+
         """
         self.model = model
         self.config = config
@@ -65,6 +71,7 @@ class MunglinkerRunner(object):
         # into a data pool.
         data_pool_dict = config2data_pool_dict(self.config)
         data_pool_dict['max_negative_samples'] = -1
+        data_pool_dict['resample_train_entities'] = False
         if 'grammar' not in data_pool_dict:
             logging.warning('MunglinkerRunner expects a grammar to restrict'
                             ' edge candidates. Without a grammar, it will take'
@@ -82,7 +89,9 @@ class MunglinkerRunner(object):
         """
         data_pool = self.build_data_pool(image, mung)
         mungo_pairs, output_classes = self.model.predict(data_pool,
-                                                        self.runtime_batch_iterator)
+                                                         self.runtime_batch_iterator)
+        logging.info('Prediction: {} positive'.format(output_classes.sum()))
+
         # Since the runner only takes one image & MuNG at a time,
         # we have the luxury that all the mung pairs belong to the same
         # document, and we can just re-do the edges.
@@ -95,6 +104,8 @@ class MunglinkerRunner(object):
         new_mung = NotationGraph(mungo_copies)
         for mungo_pair, has_edge in zip(mungo_pairs, output_classes):
             if has_edge:
+                logging.debug('Adding edge: {} --> {}'.format(mungo_pair[0].objid,
+                                                              mungo_pair[1].objid))
                 mungo_fr, mungo_to = mungo_pair
                 new_mung.add_edge(mungo_fr.objid, mungo_to.objid)
             else:
@@ -154,15 +165,23 @@ def build_argument_parser():
     parser.add_argument('--batch_size', type=int, action='store', default=10,
                         help='The runtime iterator batch size.')
 
-    parser.add_argument('--input_dir',
-                        help='A directory with single-system input images. For'
-                             ' each of these, a MIDI will be produced. Use'
-                             ' instead of --input_image for batch processing.'
-                             ' [NOT IMPLEMENTED]')
-    parser.add_argument('--output_dir',
-                        help='A directory where the output MIDI files will be'
-                             ' stored. Use together with --input_dir.'
-                             ' [NOT IMPLEMENTED]')
+    # parser.add_argument('--input_dir',
+    #                     help='A directory with single-system input images. For'
+    #                          ' each of these, a MIDI will be produced. Use'
+    #                          ' instead of --input_image for batch processing.'
+    #                          ' [NOT IMPLEMENTED]')
+    # parser.add_argument('--output_dir',
+    #                     help='A directory where the output MIDI files will be'
+    #                          ' stored. Use together with --input_dir.'
+    #                          ' [NOT IMPLEMENTED]')
+
+    parser.add_argument('--mock', action='store_true',
+                        help='If set, will not load a real model and just run'
+                             ' a mock prediction using MockNetwork.predict()')
+
+    parser.add_argument('--play', action='store_true',
+                        help='If set, will run MIDI inference over the output'
+                             ' MuNG and play the result.')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -187,13 +206,16 @@ def main(args):
     build_model_fn = model_mod.get_build_model()
     net = build_model_fn()
 
-    logging.info('Loading model params from state dict: {0}'.format(args.params))
-    params = torch.load(args.params)
-    net.load_state_dict(params)
-
     runtime_batch_iterator = model_mod.runtime_batch_iterator(batch_size=args.batch_size)
 
-    model = PyTorchNetwork(net=net, print_architecture=False)
+    if args.mock:
+        logging.info('Using mock network, so no parameters will be loaded.')
+        model = MockNetwork()
+    else:
+        logging.info('Loading model params from state dict: {0}'.format(args.params))
+        params = torch.load(args.params)
+        net.load_state_dict(params)
+        model = PyTorchNetwork(net=net, print_architecture=False)
 
     ########################################################
     # Now we run it
@@ -223,6 +245,9 @@ def main(args):
 
     if args.play:
         logging.info('Playback not implemented!!!')
+        # mf = build_midi(cropobjects=output_mung.cropobjects)
+        # with open(output_path, 'wb') as stream_out:
+        #     mf.writeFile(stream_out)
         pass
 
     logging.info('Saving output MuNG to: {}'.format(args.output_mung))

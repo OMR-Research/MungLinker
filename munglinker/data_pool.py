@@ -285,10 +285,13 @@ class PairwiseMungoDataPool(object):
         self.images = images_zoomed
 
     def _zoom_mungs(self):
+        if self.zoom is None:
+            return
+        if self.zoom == 1.0:
+            return
         for mung in self.mungs:
             for m in mung.cropobjects:
-                if self.zoom is not None:
-                    m.scale(zoom=self.zoom)
+                m.scale(zoom=self.zoom)
 
     def reset_batch_generator(self, ignore_resample=False):
         """Reset data pool with new random reordering of ``train_entities``.
