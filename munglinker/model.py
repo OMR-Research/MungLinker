@@ -301,6 +301,8 @@ class PyTorchNetwork(object):
             all_np_preds = numpy.concatenate((all_np_preds, np_pred))
 
         all_np_pred_classes = targets2classes(all_np_preds)
+        logging.info('Prediction: {} out of {} positive'
+                     ''.format(all_np_pred_classes.sum(), all_np_pred_classes.size))
         return all_mungo_pairs, all_np_pred_classes
 
     def fit(self,
@@ -479,7 +481,10 @@ class PyTorchNetwork(object):
                         #                      va_epoch_agg,
                         #                      va_epoch_agg_l)
 
-                    va_loss = va_epoch['loss']
+                    if 'fsc' in va_epoch:
+                        va_loss = -1 * va_epoch['fsc'][-1]
+                    else:
+                        va_loss = va_epoch['loss']
                     va_losses.append(va_loss)
 
                     print('Validation results: {}'.format(pprint.pformat(va_epoch)))

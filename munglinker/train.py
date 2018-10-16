@@ -187,6 +187,8 @@ def main(args):
     #     model.net.apply_sigmoid = True
 
     exp_name = build_experiment_name(args)
+    # We don't want our checkpoints to overwrite the best model.
+    checkpoint_export_file = args.export + '.ckpt'
     strategy = PyTorchTrainingStrategy(name=exp_name,
                                        loss_fn_class=loss_fn_cls,
                                        loss_fn_kwargs=loss_fn_kwargs,
@@ -199,7 +201,7 @@ def main(args):
                                        validation_stride_ratio=None,
                                        validation_nodetector_subsample_window=None,
                                        validation_outputs_dump_root=args.validation_outputs_dump_root,
-                                       checkpoint_export_file=args.export,
+                                       checkpoint_export_file=checkpoint_export_file,
                                        best_params_file=args.export,
                                        improvement_patience=args.patience)
     if args.no_early_stopping:
