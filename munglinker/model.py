@@ -284,9 +284,9 @@ class PyTorchNetwork(object):
         print('n. of runtime entities: {}; batches: {}'
               ''.format(len(data_pool), n_batches))
 
-        # Aggregate results
+        # Aggregate results (two-way)
         all_mungo_pairs = []
-        all_np_preds = numpy.array([])
+        all_np_preds = numpy.zeros((0, 2))
 
         # Run generator
         for batch_idx, _data_point in enumerate(generator):
