@@ -168,4 +168,4 @@ fabric.properties
 # Project-specific
 tmp/
 data/
-splits/
+# splits/

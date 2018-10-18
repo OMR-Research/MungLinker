@@ -6,7 +6,6 @@ import torch, cv2
 from torch.autograd import Variable
 from torch.nn import BCEWithLogitsLoss, MSELoss, BCELoss, CrossEntropyLoss
 from torch.optim import Adam, RMSprop
-from torch.nn.modules.loss import _Loss, _WeightedLoss, _assert_no_grad
 
 import argparse
 import collections
