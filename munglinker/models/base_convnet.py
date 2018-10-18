@@ -8,16 +8,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from muscima.cropobject import CropObject
 from torch.autograd import Variable
-
+from typing import List
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
-
 MIDI_MAX_LEN = 256
 MIDI_N_PITCHES = 128
-
 
 BATCH_SIZE = 4
 
@@ -35,6 +34,7 @@ class BaseConvnet(nn.Module):
     The RNN produces in each step a class: how many onsets it thinks there
     are added from the current frame. There are at most ``MAX_N_SIMULTANEOUS_ONSETS``.
     """
+
     def __init__(self,
                  n_input_channels=3,
                  leaky_relu=False):
@@ -129,8 +129,8 @@ def get_build_model():
 ##############################################################################
 
 
-def prepare_patch_and_target(mungos_from, mungos_to, patches, targets,
-                             target_is_onehot=True):
+def prepare_patch_and_target(mungos_from: List[CropObject], mungos_to: List[CropObject], patches: np.ndarray,
+                             targets: np.ndarray, target_is_onehot: bool = True):
     """Does not do anything to patches.
 
     :param mungos_from: list of CropObjects corresponding to the FROM-half
@@ -144,6 +144,8 @@ def prepare_patch_and_target(mungos_from, mungos_to, patches, targets,
     :param targets: 1-D array of dim ``batch_size``, expected to be binary
 
     :param target_is_onehot: Expands targets to two-way softmax format.
+    :param patches: dimensions = [batchsize,channels,patch_rows,patch_columns]
+    :param targets: dimensions = [batchsize] of 0s/1s
     """
     if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
         target_for_softmax = np.zeros((targets.shape[0], 2))
@@ -244,12 +246,14 @@ if __name__ == '__main__':
     # Prepare dummy batch
     # -------------------
     from munglinker.utils import generate_munglinker_training_batch
+
     patches, targets = generate_munglinker_training_batch(_batch_size, patch_shape)
 
     print('patches shape: {}'.format(patches.shape))
 
     X, y = prepare_patch_and_target(patches, targets)
     from munglinker.utils import plot_batch_patches
+
     plot_batch_patches(patches, targets)
 
     X_torch = Variable(torch.from_numpy(X).float())
@@ -262,4 +266,3 @@ if __name__ == '__main__':
 
     print('y_true = {}'.format(y_torch))
     print('y_pred = {}'.format(y_pred))
-

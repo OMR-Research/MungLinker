@@ -40,7 +40,7 @@ def build_argument_parser():
     parser = argparse.ArgumentParser(description=__doc__, add_help=True,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    parser.add_argument('-m', '--model', required=True,
+    parser.add_argument('-m', '--model', default="base_convnet",
                         help='The name of the model that you wish to use.'
                              ' Has to be a name in the models/ subdir'
                              ' of munglinker (without the .py extension).')
@@ -49,19 +49,19 @@ def build_argument_parser():
                              ' this model. Careful: in order to continue training,'
                              ' you would also have to recover the optimizer state.')
 
-    parser.add_argument('-r', '--mung_root', action='store', required=True,
+    parser.add_argument('-r', '--mung_root', action='store', default="data/mungs",
                         help='The root directory that contains the MuNG XMLs.')
-    parser.add_argument('-i', '--image_root', action='store', required=True,
+    parser.add_argument('-i', '--image_root', action='store', default="data/images",
                         help='The root directory that contains the images of'
                              ' scores that are represented by the MuNGs. The'
                              ' image names must correspond to the MuNG file'
                              ' names, up to the file type suffix.')
-    parser.add_argument('-s', '--split_file', action='store', required=True,
+    parser.add_argument('-s', '--split_file', action='store', default="splits/minitest_split.yaml",
                         help='The split file that specifies which MUSCIMA++ items'
                              ' are training, validation, and test data. See the'
                              ' splits/ subdirectory for examples.')
 
-    parser.add_argument('-c', '--config_file', action='store', required=True,
+    parser.add_argument('-c', '--config_file', action='store', default="exp_configs/muscima_base.yaml",
                         help='The config file that specifies things like'
                              ' preprocessing. See the exp_configs/ subdirectory'
                              ' for examples.')
@@ -76,7 +76,7 @@ def build_argument_parser():
     #                     help='Detector threshold for validation runs, '
     #                          'to record detection scores as well as dice.')
 
-    parser.add_argument('-e', '--export', action='store', required=True,
+    parser.add_argument('-e', '--export', action='store', default="models/default_model.tsd",
                         help='Export the model params into this file.')
 
     parser.add_argument('-b', '--batch_size', type=int, default=100,
