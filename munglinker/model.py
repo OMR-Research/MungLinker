@@ -501,7 +501,7 @@ class PyTorchNetwork(object):
                 else:
                     print(_va_loss_str)
 
-                ###################################
+                ##############################################################
                 # Early-stopping: Check for improvement
                 if epoch_loss < best_loss:
                     # If the f-score is used, it is inverted in both epoch_loss
@@ -509,6 +509,16 @@ class PyTorchNetwork(object):
                     last_improvement = best_loss - epoch_loss
                     best_loss = epoch_loss
                     best_model = self.net.state_dict()
+                    # Save the best model!
+                    if training_strategy.best_params_file:
+                        print('Saving best model: {}'
+                              ''.format(training_strategy.best_params_file))
+                        torch.save(self.net.state_dict(),
+                                   training_strategy.best_params_file)
+                    else:
+                        logging.warning('No file to save the best model is specified'
+                                        ' in training strategy!!!')
+
                     last_improvement = 0
                 else:
                     last_improvement += 1

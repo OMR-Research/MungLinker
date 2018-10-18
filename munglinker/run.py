@@ -149,15 +149,25 @@ def build_argument_parser():
 
     parser.add_argument('-i', '--input_image', required=True,
                         help='A single-system input image for which MIDI should'
-                             ' be output. This is the simplest input mode.')
+                             ' be output. This is the simplest input mode.'
+                             ' If a directory is given, it will run over all'
+                             ' images in that directory, expecting --input_mung'
+                             ' to also be a directory with correspondingly named'
+                             ' MuNG files (like for training).')
     parser.add_argument('-g', '--input_mung', required=True,
                         help='A MuNG XML file. The edges inoinks/outlinks in'
                              ' the file are ignored, unless the --retain_edges'
-                             ' flag is set [NOT IMPLEMENTED].')
+                             ' flag is set [NOT IMPLEMENTED]. If this is a'
+                             ' directory, it will run over all MuNGs in that'
+                             ' directory, expecting --input_image to also'
+                             ' be a directory with correspondingly named'
+                             ' image files (like for training).')
 
     parser.add_argument('-o', '--output_mung', required=True,
                         help='The MuNG with inferred edges should be exported'
-                             ' to this file.')
+                             ' to this file. If this is a directory, will instead'
+                             ' export all the output MuNGs here, with names copied'
+                             ' from the input MuNGs.')
 
     parser.add_argument('--visualize', action='store_true',
                         help='If set, will plot the image and output MIDI'
@@ -165,23 +175,13 @@ def build_argument_parser():
     parser.add_argument('--batch_size', type=int, action='store', default=10,
                         help='The runtime iterator batch size.')
 
-    # parser.add_argument('--input_dir',
-    #                     help='A directory with single-system input images. For'
-    #                          ' each of these, a MIDI will be produced. Use'
-    #                          ' instead of --input_image for batch processing.'
-    #                          ' [NOT IMPLEMENTED]')
-    # parser.add_argument('--output_dir',
-    #                     help='A directory where the output MIDI files will be'
-    #                          ' stored. Use together with --input_dir.'
-    #                          ' [NOT IMPLEMENTED]')
-
     parser.add_argument('--mock', action='store_true',
                         help='If set, will not load a real model and just run'
                              ' a mock prediction using MockNetwork.predict()')
 
     parser.add_argument('--play', action='store_true',
                         help='If set, will run MIDI inference over the output'
-                             ' MuNG and play the result.')
+                             ' MuNG and play the result. [NOT IMPLEMENTED]')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -218,7 +218,7 @@ def main(args):
         model = PyTorchNetwork(net=net, print_architecture=False)
 
     ########################################################
-    # Now we run it
+    # Prepare runner
 
     logging.info('Initializing runner...')
     runner = MunglinkerRunner(model=model,
@@ -226,15 +226,41 @@ def main(args):
                               runtime_batch_iterator=runtime_batch_iterator,
                               replace_all_edges=True)
 
-    logging.info('Loading image: {}'.format(args.input_image))
-    img = imread(args.input_image, mode='L')
+    ########################################################
+    # Load data & run
+    image_files = []
+    input_mung_files = []
 
-    logging.info('Loading MuNG: {}'.format(args.input_mung))
-    input_mungos = parse_cropobject_list(args.input_mung)
-    input_mung = NotationGraph(input_mungos)
+    if os.path.isfile(args.input_image):
+        logging.info('Loading image: {}'.format(args.input_image))
+        image_files.append(args.input_image)
+    elif os.path.isdir(args.input_image):
+        raise NotImplementedError
+    else:
+        raise OSError('Input image(s) not found: {}'.format(args.input_image))
 
-    logging.info('Running OMR')
-    output_mung = runner.run(img, input_mung)
+    if os.path.isfile(args.input_mung):
+        logging.info('Loading MuNG: {}'.format(args.input_mung))
+        input_mung_files.append(args.input_mung)
+    elif os.path.isdir(args.input_mung):
+        raise NotImplementedError
+    else:
+        raise OSError('Input MuNG(s) not found: {}'.format(args.input_mung))
+
+    ########################################################
+    # Run munglinker model
+
+    output_mungs = []
+    for i, (image_file, input_mung_file) in enumerate(zip(image_files, input_mung_files)):
+
+        img = imread(image_file, mode='L')
+
+        input_mungos = parse_cropobject_list(input_mung_file)
+        input_mung = NotationGraph(input_mungos)
+
+        logging.info('Running Munglinker: {} / {}'.format(i, len(image_files)))
+        output_mung = runner.run(img, input_mung)
+        output_mungs.append(output_mung)
 
     ##########################################################################
     # And deal with the output:
@@ -250,11 +276,21 @@ def main(args):
         #     mf.writeFile(stream_out)
         pass
 
-    logging.info('Saving output MuNG to: {}'.format(args.output_mung))
-    with open(args.output_mung, 'w') as hdl:
-        hdl.write(export_cropobject_list(output_mung.cropobjects))
+    ##########################################################################
+    # Save output (TODO: refactor this into the processing loop)
 
-    # No evaluation here.
+    if os.path.isdir(args.output_mung):
+        output_mung_files = [os.path.join(args.output_mung, os.path.basename(f))
+                             for f in input_mung_files]
+    else:
+        output_mung_files = [args.output_mung]
+
+    for output_mung_file, output_mung in zip(output_mung_files, output_mungs):
+        logging.info('Saving output MuNG to: {}'.format(output_mung_file))
+        with open(output_mung_file, 'w') as hdl:
+            hdl.write(export_cropobject_list(output_mung.cropobjects))
+
+    # (No evaluation in this script.)
 
     _end_time = time.clock()
     logging.info('run.py done in {0:.3f} s'.format(_end_time - _start_time))
