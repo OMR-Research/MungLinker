@@ -58,11 +58,13 @@ def build_argument_parser():
                              ' names, up to the file type suffix.')
     parser.add_argument('-s', '--split_file', action='store', required=True,
                         help='The split file that specifies which MUSCIMA++ items'
-                             ' are training, validation, and test data.')
+                             ' are training, validation, and test data. See the'
+                             ' splits/ subdirectory for examples.')
 
     parser.add_argument('-c', '--config_file', action='store', required=True,
                         help='The config file that specifies things like'
-                             ' preprocessing.')
+                             ' preprocessing. See the exp_configs/ subdirectory'
+                             ' for examples.')
 
     # parser.add_argument('--validation_size', type=int, default=20,
     #                     action='store',

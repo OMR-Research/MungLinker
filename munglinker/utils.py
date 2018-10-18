@@ -462,6 +462,21 @@ def select_model(model_path):
     return model
 
 
+def cuda_works():
+    import torch
+    if not torch.cuda.is_available():
+        return False
+
+    x = np.ones((10, 10))
+    from torch.autograd import Variable
+    x_torch = Variable(torch.from_numpy(x))
+    try:
+        x_torch.cuda()
+    except RuntimeError:
+        return False
+
+    return True
+
 ##############################################################################
 # Visualizations
 

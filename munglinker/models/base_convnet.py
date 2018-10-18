@@ -133,6 +133,16 @@ def prepare_patch_and_target(mungos_from, mungos_to, patches, targets,
                              target_is_onehot=True):
     """Does not do anything to patches.
 
+    :param mungos_from: list of CropObjects corresponding to the FROM-half
+        of the pairs; the length of the list is ``batch_size``.
+
+    :param mungos_to: list of CropObjects corresponding to the TO-half
+        of the pairs; the length of the list is ``batch_size``.
+
+    :param patches: 4-D batch: ``batch_size x n_channels x patch_rows x patch_columns``
+
+    :param targets: 1-D array of dim ``batch_size``, expected to be binary
+
     :param target_is_onehot: Expands targets to two-way softmax format.
     """
     if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
