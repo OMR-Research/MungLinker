@@ -144,8 +144,6 @@ def prepare_patch_and_target(mungos_from: List[CropObject], mungos_to: List[Crop
     :param targets: 1-D array of dim ``batch_size``, expected to be binary
 
     :param target_is_onehot: Expands targets to two-way softmax format.
-    :param patches: dimensions = [batchsize,channels,patch_rows,patch_columns]
-    :param targets: dimensions = [batchsize] of 0s/1s
     """
     if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
         target_for_softmax = np.zeros((targets.shape[0], 2))
