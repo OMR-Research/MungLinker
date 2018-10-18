@@ -21,7 +21,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torch.nn.modules.loss import _WeightedLoss, _assert_no_grad, MSELoss
+from torch.nn.modules.loss import _WeightedLoss, MSELoss
 from torch.optim import Adam
 
 from munglinker.image_normalization import auto_invert, stretch_intensity, ImageNormalizer
@@ -46,7 +46,6 @@ class FocalLossElemwise(_WeightedLoss):
         self.alpha_balance = alpha_balance
 
     def forward(self, input, target):
-        _assert_no_grad(target)
         # Assumes true is a binary tensor.
         # All operations are elemntwise, unless stated otherwise.
         # ELementwise cross-entropy
@@ -380,7 +379,7 @@ class PyTorchNetwork(object):
         best_tr_loss, best_va_loss = 1e7, 1e7
         prev_fsc_tr, prev_fsc_va = 0.0, 0.0
 
-        print("Strating training...")
+        print("Starting training...")
         _start_time = time.time()
         try:
 
