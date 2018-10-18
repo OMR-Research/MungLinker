@@ -1,7 +1,7 @@
 # Data point sampling parameters
 THRESHOLD_NEGATIVE_DISTANCE: 200
 MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
-# Resampling applies only to the training pool, not the validation pool.
+# Resampling applies only to the training pool, not the validation pool. 1 = True, 0 = False
 RESAMPLE_EACH_EPOCH: 1
 # Restricting negative samples only to pairs permissible by a given muscima grammar
 RESTRICT_TO_GRAMMAR: ../resources/mff-muscima-mlclasses-annot.deprules
