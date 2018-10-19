@@ -579,7 +579,7 @@ def load_munglinker_data_lite(mung_root, images_root,
 def load_munglinker_data(mung_root, images_root, split_file,
                          config_file=None,
                          test_only=False, no_test=False,
-                         exclude_classes=None,):
+                         exclude_classes=None):
     """Loads the train/validation/test data pools for the MuNGLinker
     experiments.
 

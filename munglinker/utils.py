@@ -669,7 +669,7 @@ def config2data_pool_dict(config):
     }
 
     if 'PATCH_NO_IMAGE' in config:
-        data_pool_dict['PATCH_NO_IMAGE'] = config['PATCH_NO_IMAGE']
+        data_pool_dict['patch_no_image'] = config['PATCH_NO_IMAGE']
 
     # Load grammar, if requested
     if 'RESTRICT_TO_GRAMMAR' in config:
