@@ -668,6 +668,9 @@ def config2data_pool_dict(config):
         'balance_samples': False
     }
 
+    if 'PATCH_NO_IMAGE' in config:
+        data_pool_dict['PATCH_NO_IMAGE'] = config['PATCH_NO_IMAGE']
+
     # Load grammar, if requested
     if 'RESTRICT_TO_GRAMMAR' in config:
         if not os.path.isfile(config['RESTRICT_TO_GRAMMAR']):

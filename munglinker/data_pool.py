@@ -34,6 +34,9 @@ RESAMPLE_EACH_EPOCH = False
 # The size of the image patches that are ouptut
 PATCH_HEIGHT = 256
 PATCH_WIDTH = 512
+# If this is set, the image in the patch will be masked to 0,
+# so the system will only have the from/to masks to work with.
+PATCH_NO_IMAGE = 0
 
 # The rescaling factor that is applied before the patch is extracted
 # (In effect, setting this to 0.5 downscales by a factor of 2, so
@@ -177,6 +180,7 @@ class PairwiseMungoDataPool(object):
                  resample_train_entities=False,
                  grammar=None,
                  patch_size=(PATCH_HEIGHT, PATCH_WIDTH),
+                 patch_no_image=PATCH_NO_IMAGE,
                  zoom=IMAGE_ZOOM,
                  max_patch_displacement=MAX_PATCH_DISPLACEMENT,
                  balance_samples=False):
@@ -206,6 +210,10 @@ class PairwiseMungoDataPool(object):
         :param patch_size: What the size of the extracted patch should
             be (after applying zoom), specified as ``(rows, columns)``.
 
+        :param patch_no_image: Do *NOT* use the underlying image.
+            Instead, channel 0 is set to all 0s. This is one of the baselines
+            we use.
+
         :param zoom: The rescaling factor. Setting this to 0.5 means
             the image will be downscaled to half the height & width
             before the patch is extracted.
@@ -229,6 +237,7 @@ class PairwiseMungoDataPool(object):
         self.patch_size = patch_size
         self.patch_height = patch_size[0]
         self.patch_width = patch_size[1]
+        self.patch_no_image = patch_no_image
 
         self.zoom = zoom
         self._zoom_images()
@@ -379,7 +388,8 @@ class PairwiseMungoDataPool(object):
         i_patch_t, i_patch_l, i_patch_b, i_patch_r = bbox_of_patch_wrt_image
 
         try:
-            output[0][i_patch_t:i_patch_b, i_patch_l:i_patch_r] = image_crop
+            if not self.patch_no_image:
+                output[0][i_patch_t:i_patch_b, i_patch_l:i_patch_r] = image_crop
         except ValueError as e:
             print('Image shape: {}'.format(image.shape))
             print('Patch bbox:  {}'.format(bbox_patch))
