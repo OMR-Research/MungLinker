@@ -432,6 +432,10 @@ class PyTorchNetwork(object):
                 # Checkpointing
                 if (epoch_idx + 1) % training_strategy.n_epochs_per_checkpoint == 0:
                     if training_strategy.checkpoint_export_file:
+                        if training_strategy.checkpoint_export_file is None:
+                            os.makedirs("models", exist_ok=True)
+                        else:
+                            os.makedirs(training_strategy.checkpoint_export_file, exist_ok=True)
                         torch.save(self.net.state_dict(),
                                    training_strategy.checkpoint_export_file)
                     else:
