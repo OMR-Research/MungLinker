@@ -22,9 +22,11 @@ notehead-empty | grace-notehead-full grace-notehead-empty
 
 # Aggregate cardinalities
 
+# There should be at least one outgoing link from each full notehead
 notehead-full{1,} |
 grace-notehead-full{1,} |
 
+# These things should have at least one incoming link
 | grace-notehead-*{1,}
 | beam{1,} stem{1,}
 | duration-dot{1,} staccato-dot{1,} other-dot{1,}
