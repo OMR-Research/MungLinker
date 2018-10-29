@@ -95,13 +95,13 @@ class BaseConvnet(nn.Module):
         fcn = nn.Sequential()
         fcn.add_module('fcn0',
                        nn.Linear(in_features=32 * 8 * 16,
-                                 out_features=2,  # Output decision
+                                 out_features=1,  # Output decision
                                  bias=False))
 
         self.fcn = fcn
 
         # Output through softmax
-        self.softmax = nn.Softmax()
+        self.output_activation = nn.Sigmoid() # nn.Softmax()
 
     def get_conv_output(self, input):
         conv_output = self.cnn(input)
@@ -113,7 +113,7 @@ class BaseConvnet(nn.Module):
         return fcn_output
 
     def get_output_from_fcn_output(self, fcn_output):
-        return self.softmax(fcn_output)
+        return self.output_activation(fcn_output)
 
     def forward(self, input):
         conv_output = self.get_conv_output(input)
@@ -129,8 +129,11 @@ def get_build_model():
 ##############################################################################
 
 
-def prepare_patch_and_target(mungos_from: List[CropObject], mungos_to: List[CropObject], patches: np.ndarray,
-                             targets: np.ndarray, target_is_onehot: bool = True):
+def prepare_patch_and_target(mungos_from: List[CropObject],
+                             mungos_to: List[CropObject],
+                             patches: np.ndarray,
+                             targets: np.ndarray,
+                             target_is_onehot: bool = False):
     """Does not do anything to patches.
 
     :param mungos_from: list of CropObjects corresponding to the FROM-half
@@ -249,7 +252,7 @@ if __name__ == '__main__':
 
     print('patches shape: {}'.format(patches.shape))
 
-    X, y = prepare_patch_and_target(patches, targets)
+    X, y = prepare_patch_and_target([], [], patches, targets)
     from munglinker.utils import plot_batch_patches
 
     plot_batch_patches(patches, targets)

@@ -506,8 +506,12 @@ def plot_batch_patches(X, y, max_items=6):
         cfx, cfy = center_of_mass(patch[1])
         ctx, cty = center_of_mass(patch[2])
         arrowcolor = 'r'
-        if y[i][1] > y[i][0]:
-            arrowcolor = 'g'
+        if y.shape[-1] == 2:
+            if y[i][1] > y[i][0]:
+                arrowcolor = 'g'
+            else:
+                if y[i] > 0.5:
+                    arrowcolor = 'g'
         plt.arrow(cfy, cfx, cty - cfy, ctx - cfx,
                   color=arrowcolor,
                   width=0.1, head_width=15, head_length=20,
