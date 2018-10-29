@@ -349,9 +349,9 @@ def targets2classes(targets):
 
     """
     if targets.ndim == 1:
-        return targets
+        return (targets >= 0.5).astype('uint8')
     if targets.ndim == 2 and targets.shape[-1] == 1:
-        return targets
+        return (targets >= 0.5).astype('uint8')
     output = np.argmax(targets, axis=1)
     return output
 
