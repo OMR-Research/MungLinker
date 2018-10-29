@@ -22,19 +22,7 @@ BATCH_SIZE = 4
 
 
 class BaseConvnet(nn.Module):
-    """Onset counter recurrent network.
-
-    Heavily draws from:
-
-    ``https://github.com/meijieru/crnn.pytorch/blob/ab61ff13c204a03d08b2836f39688c851f50fb12/models/crnn.py``
-
-    It is a sequence-to-sequence model that in each step outputs a number of onsets
-    and the loss is computed from their sum.
-
-    The RNN produces in each step a class: how many onsets it thinks there
-    are added from the current frame. There are at most ``MAX_N_SIMULTANEOUS_ONSETS``.
-    """
-
+    """Basic ConvNet with binary classifier sigmoid (no bias) at the end."""
     def __init__(self,
                  n_input_channels=3,
                  leaky_relu=False):

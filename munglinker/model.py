@@ -435,7 +435,8 @@ class PyTorchNetwork(object):
                         if training_strategy.checkpoint_export_file is None:
                             os.makedirs("models", exist_ok=True)
                         else:
-                            os.makedirs(training_strategy.checkpoint_export_file, exist_ok=True)
+                            os.makedirs(training_strategy.checkpoint_export_file,
+                                        exist_ok=True)
                         torch.save(self.net.state_dict(),
                                    training_strategy.checkpoint_export_file)
                     else:

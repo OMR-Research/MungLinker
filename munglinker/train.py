@@ -190,6 +190,10 @@ def main(args):
     exp_name = build_experiment_name(args)
     # We don't want our checkpoints to overwrite the best model.
     checkpoint_export_file = args.export + '.ckpt'
+    if os.path.exists(checkpoint_export_file):
+        logging.warning('Checkpointing file exists, removing...')
+        os.unlink(checkpoint_export_file)
+
     strategy = PyTorchTrainingStrategy(name=exp_name,
                                        loss_fn_class=loss_fn_cls,
                                        loss_fn_kwargs=loss_fn_kwargs,
