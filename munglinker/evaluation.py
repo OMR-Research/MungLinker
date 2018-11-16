@@ -62,6 +62,8 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
         print('cpair {}: support {}'.format(cpair, cp_results_all['support']))
         if cp_results_all['support'] is None:
             cp_results_all['support'] = cp_true.sum()
+        elif isinstance(cp_results_all['support'], list):
+            cp_results_all['support'] = cp_results_all['support'].sum()
         if cp_results_all['support'] == 0:
             continue
         # print('Cpair {}: results\n{}'.format(cpair, cp_results_all))
@@ -87,7 +89,7 @@ def print_class_pair_results(class_pair_results, min_support=100):
     import pprint
     pprint.pprint(class_pair_results)
     cpair_ordered = sorted(class_pair_results.keys(),
-                           key=lambda cp: sum(class_pair_results[cp]['support']),
+                           key=lambda cp: class_pair_results[cp]['support'],
                            reverse=True)
     for cpair in cpair_ordered:
         print('cpair {}'.format(cpair))
