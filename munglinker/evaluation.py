@@ -20,7 +20,8 @@ def evaluate_clf(pred_classes, true_classes):
     from sklearn.metrics import accuracy_score, precision_recall_fscore_support
     accuracy = accuracy_score(true_classes, pred_classes)
     precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes,
-                                                                           pred_classes)
+                                                                           pred_classes,
+                                                                           average='binary')
     return {'acc': accuracy,
             'prec': precision,
             'rec': recall,
@@ -60,9 +61,9 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
         cp_results_all = evaluate_clf(cp_pred, cp_true)
         print('Cpair {}: results\n{}'.format(cpair, cp_results_all))
         cp_results = {
-            'rec': cp_results_all['rec'][1],
-            'prec': cp_results_all['prec'][1],
-            'fsc': cp_results_all['fsc'][1],
+            'rec': cp_results_all['rec'],
+            'prec': cp_results_all['prec'],
+            'fsc': cp_results_all['fsc'],
             'support': cp_results_all['support']}
         if flatten_results:
             cpair_name = '__'.join(*cpair)
