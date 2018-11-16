@@ -560,12 +560,10 @@ class PyTorchNetwork(object):
                         # Log results to TensorBoard
                         if self._tb is not None:
                             # Log epoch results to tensorboard.
-                            raise NotImplementedError()
                             # # Training results:
-                            # self.log_epoch_to_tb(epoch_idx,
-                            #                      tr_epoch,
-                            #                      va_epoch_agg,
-                            #                      va_epoch_agg_l)
+                            self.log_epoch_to_tb(epoch_idx,
+                                                 tr_epoch,
+                                                 va_epoch)
 
                         break
 
@@ -614,7 +612,7 @@ class PyTorchNetwork(object):
 
         for k, v in va_epoch['all'].items():
             self._tb.add_scalar('{0}'.format(k, v, epoch_idx),
-                                v, epoch_idx)
+                                v[-1], epoch_idx)
 
 
     def print_validation_results(self, val_label_avg_results, val_avg_results):
