@@ -94,7 +94,7 @@ def print_class_pair_results(class_pair_results, min_support=100):
     for cpair in cpair_ordered:
         print('cpair {}'.format(cpair))
         values = class_pair_results[cpair]
-        if sum(values['support']) < min_support:
+        if values['support'] < min_support:
             continue
         if cpair == 'all':
             cpair_name = cpair
