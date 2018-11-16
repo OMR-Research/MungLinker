@@ -121,7 +121,8 @@ def prepare_patch_and_target(mungos_from: List[CropObject],
                              mungos_to: List[CropObject],
                              patches: np.ndarray,
                              targets: np.ndarray,
-                             target_is_onehot: bool = False):
+                             target_is_onehot: bool = False,
+                             also_output_mungos: bool = False):
     """Does not do anything to patches.
 
     :param mungos_from: list of CropObjects corresponding to the FROM-half
@@ -135,6 +136,9 @@ def prepare_patch_and_target(mungos_from: List[CropObject],
     :param targets: 1-D array of dim ``batch_size``, expected to be binary
 
     :param target_is_onehot: Expands targets to two-way softmax format.
+
+    :param also_output_mungos: If set, outputs ``mungos_from, mungos_to, patches, targets``
+        -- useful for evaluation, when you need at hand information about all the inputs.
     """
     if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
         target_for_softmax = np.zeros((targets.shape[0], 2))
@@ -143,6 +147,9 @@ def prepare_patch_and_target(mungos_from: List[CropObject],
         target_for_softmax = np.argmax(targets, axis=1)
     else:
         target_for_softmax = targets
+
+    if also_output_mungos:
+        return mungos_from, mungos_to, patches, target_for_softmax
 
     return patches, target_for_softmax
 
@@ -156,13 +163,15 @@ def prepare_train(*args, **kwargs):
 
 
 def prepare_valid(*args, **kwargs):
-    X, y = prepare_patch_and_target(*args, **kwargs)
-    return X, y
+    m_from, m_to, X, y = prepare_patch_and_target(*args, **kwargs,
+                                                  also_output_mungos=True)
+    return m_from, m_to, X, y
 
 
 def prepare_test(*args, **kwargs):
-    X, y = prepare_patch_and_target(*args, **kwargs)
-    return X, y
+    m_from, m_to, X, y = prepare_patch_and_target(*args, **kwargs,
+                                                  also_output_mungos=True)
+    return m_from, m_to, X, y
 
 
 def prepare_runtime(*args, **kwargs):

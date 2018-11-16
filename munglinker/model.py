@@ -659,24 +659,29 @@ class PyTorchNetwork(object):
 
         n_batches = len(data_pool) // valid_batch_iter.batch_size
 
-        validation_results = collections.OrderedDict()
-        validation_preds = collections.OrderedDict()
-        validation_targets = collections.OrderedDict()
-        #
-        # validation_origs = collections.OrderedDict()
-        # validation_prob_maps = collections.OrderedDict()
-        # validation_prob_masks = collections.OrderedDict()
-        # validation_pred_labels = collections.OrderedDict()
+        # Batch-wise results.
+        batchwise_val_results = collections.OrderedDict()
+        batchwise_val_preds = collections.OrderedDict()
+        batchwise_val_targets = collections.OrderedDict()
 
-        agg_pred_classes = []
-        agg_target_classes = []
+        val_mungo_pairs = []
+        val_pred_classes = []
+        val_target_classes = []
+        val_results = collections.OrderedDict()
         losses = []
 
         for batch_idx in range(n_batches):
             # if detector is not None:
             #     print('\tImage {0}: {1}'.format(i, val_img_name))
 
-            np_inputs, np_targets = next(val_generator)
+            # Validation iterator might also output the MuNGOs,
+            # for improved evaluation options.
+            val_batch = next(val_generator)
+            mungos_fr, mungos_to = None, None
+            if len(val_batch) == 4:
+                mungos_fr, mungos_to, np_inputs, np_targets = val_batch
+            else:
+                np_inputs, np_targets = val_batch
 
             inputs = Variable(torch.from_numpy(np_inputs).float())
             targets = Variable(torch.from_numpy(np_targets).float())
@@ -692,14 +697,7 @@ class PyTorchNetwork(object):
             loss = loss_fn(pred, targets)
             losses.append(self._torch2np(loss))
 
-            if batch_idx < 3:
-                # This will get relegated to logging; for now
-                # we print directly.
-                np_pred_classes = targets2classes(np_pred)
-                np_target_classes = targets2classes(np_targets)
-                logging.info('\t{}: Targets: {}'.format(batch_idx, np_targets[:10]))
-                logging.info('\t{}: Outputs: {}'.format(batch_idx, np_pred[:10]))
-
+            # Compute all evaluation metrics available for current batch.
             current_batch_results = collections.OrderedDict()
             current_batch_results['loss'] = self._torch2np(loss)
             current_batch_metrics = self._evaluate_clf(np_pred_classes, np_target_classes)
@@ -707,12 +705,22 @@ class PyTorchNetwork(object):
                 current_batch_results[k] = v
 
             # ...let's not collect batchwise evaluation metrics.
-            # validation_results[batch_idx] = current_batch_results
-            validation_preds[batch_idx] = np_pred
-            validation_targets[batch_idx] = np_targets
+            # batchwise_val_preds[batch_idx] = np_pred
+            # batchwise_val_targets[batch_idx] = np_targets
 
-            agg_pred_classes.extend(np_pred_classes)
-            agg_target_classes.extend(np_target_classes)
+            val_pred_classes.extend(np_pred_classes)
+            val_target_classes.extend(np_target_classes)
+            if mungos_fr is not None:
+                val_mungo_pairs.extend(list(zip(mungos_fr, mungos_to)))
+
+            # Log sample outputs. Used mostly for sanity/debugging.
+            if batch_idx < 3:
+                # This will get relegated to logging; for now
+                # we print directly.
+                np_pred_classes = targets2classes(np_pred)
+                np_target_classes = targets2classes(np_targets)
+                logging.info('\t{}: Targets: {}'.format(batch_idx, np_targets[:10]))
+                logging.info('\t{}: Outputs: {}'.format(batch_idx, np_pred[:10]))
 
         # # Dumping output images -- only with detector
         # if detector is not None:
@@ -730,14 +738,14 @@ class PyTorchNetwork(object):
         #                                          validation_prob_masks,
         #                                          validation_pred_labels)
 
-        # Here we compute aggregate results.
-        agg_metrics = self._evaluate_clf(agg_pred_classes, agg_target_classes)
+        # Compute evaluation metrics aggregated over validation set.
+        agg_metrics = self._evaluate_clf(val_pred_classes, val_target_classes)
         for k, v in agg_metrics.items():
-            validation_results[k] = v
+            val_results[k] = v
         agg_loss = numpy.mean(losses)
-        validation_results['loss'] = agg_loss
+        val_results['loss'] = agg_loss
 
-        return validation_results
+        return val_results
 
     def _evaluate_clf(self, pred_classes, true_classes):
         from sklearn.metrics import accuracy_score, precision_recall_fscore_support
