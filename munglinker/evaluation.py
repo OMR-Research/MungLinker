@@ -79,6 +79,8 @@ def print_class_pair_results(class_pair_results, min_support=100):
     """Prints the class pair results ordered by support, from more to less.
     Prints only class pairs that have at least ``min_support`` positive
     plus negative examples."""
+    import pprint
+    pprint.pprint(class_pair_results)
     cpair_ordered = sorted(class_pair_results.keys(),
                            key=lambda cp: sum(class_pair_results[cp]['support']),
                            reverse=True)
