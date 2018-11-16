@@ -87,7 +87,6 @@ def print_class_pair_results(class_pair_results, min_support=20):
     Prints only class pairs that have at least ``min_support`` positive
     plus negative examples."""
     import pprint
-    pprint.pprint(class_pair_results)
     cpair_ordered = sorted([k for k in class_pair_results.keys() if k != 'all'],
                            key=lambda cp: class_pair_results[cp]['support'],
                            reverse=True)
