@@ -54,9 +54,9 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
 
     class_pair_results = dict()
     for cpair in class_pair_index:
-        cpi = np.array(class_pair_index[cpair]).astype('uint8')
-        cp_true = true_classes[cpi]
-        cp_pred = pred_classes[cpi]
+        cpi = np.array(class_pair_index[cpair]).astype('int64')
+        cp_true = np.array([true_classes[i] for i in cpi])
+        cp_pred = np.array([pred_classes[i] for i in cpi])
         cp_results_all = evaluate_clf(cp_pred, cp_true)
         cp_results = {
             'rec': cp_results_all['rec'][1],

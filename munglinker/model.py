@@ -722,8 +722,6 @@ class PyTorchNetwork(object):
             if batch_idx < 3:
                 # This will get relegated to logging; for now
                 # we print directly.
-                np_pred_classes = targets2classes(np_pred)
-                np_target_classes = targets2classes(np_targets)
                 logging.info('\t{}: Targets: {}'.format(batch_idx, np_targets[:10]))
                 logging.info('\t{}: Outputs: {}'.format(batch_idx, np_pred[:10]))
 
