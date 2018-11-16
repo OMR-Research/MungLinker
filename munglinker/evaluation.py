@@ -70,7 +70,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
             'fsc': cp_results_all['fsc'],
             'support': cp_results_all['support']}
         if flatten_results:
-            cpair_name = '__'.join(*cpair)
+            cpair_name = '__'.join(cpair)
             for k, v in cp_results.items():
                 class_pair_results[cpair_name + '__' + k] = v
         else:
