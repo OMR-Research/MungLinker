@@ -81,7 +81,7 @@ def print_class_pair_results(class_pair_results, min_support=100):
     plus negative examples."""
     cpair_ordered = sorted(class_pair_results.keys(),
                            key=lambda cp: sum(class_pair_results[cp]['support']),
-                           reversed=True)
+                           reverse=True)
     for cpair in cpair_ordered:
         values = class_pair_results[cpair]
         if sum(values['support']) < min_support:
