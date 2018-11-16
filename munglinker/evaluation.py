@@ -64,6 +64,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
             cp_results_all['support'] = len(cpi)
         elif isinstance(cp_results_all['support'], list):
             cp_results_all['support'] = cp_results_all['support'].sum()
+            print('Support is list, now: {}'.format(cp_results_all['support']))
         if cp_results_all['support'] == 0:
             continue
         # print('Cpair {}: results\n{}'.format(cpair, cp_results_all))
