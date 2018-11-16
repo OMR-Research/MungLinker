@@ -89,10 +89,14 @@ def print_class_pair_results(class_pair_results, min_support=100):
                            key=lambda cp: sum(class_pair_results[cp]['support']),
                            reverse=True)
     for cpair in cpair_ordered:
+        print('cpair {}'.format(cpair))
         values = class_pair_results[cpair]
         if sum(values['support']) < min_support:
             continue
-        cpair_name = '__'.join(cpair)
+        if cpair == 'all':
+            cpair_name = cpair
+        else:
+            cpair_name = '__'.join(cpair)
         for k in ['rec', 'prec', 'fsc', 'support', 'loss']:
             if k in values:
                 print('{}__{}'.format(cpair_name, k), values[k])
