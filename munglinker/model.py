@@ -479,12 +479,11 @@ class PyTorchNetwork(object):
                     # self.print_validation_results(va_epoch_agg_l, va_epoch_agg)
 
                     if self._tb is not None:
-                        print('Logging validation epoch results to tensorboard'
-                              ' is not implemented!')
-                        # self.log_epoch_to_tb(epoch_idx,
-                        #                      tr_epoch,
-                        #                      va_epoch_agg,
-                        #                      va_epoch_agg_l)
+                        # print('Logging validation epoch results to tensorboard'
+                        #       ' is not implemented!')
+                        self.log_epoch_to_tb(epoch_idx,
+                                             tr_epoch,
+                                             va_epoch)
 
                     if 'fsc' in va_epoch:
                         va_loss = -1 * va_epoch['all']['fsc'][-1]
@@ -590,25 +589,33 @@ class PyTorchNetwork(object):
         else:
             return best_loss
 
-    def log_epoch_to_tb(self, epoch_idx, tr_epoch, va_epoch_agg, va_epoch_agg_l):
+    def log_epoch_to_tb(self, epoch_idx, tr_epoch, va_epoch):
         self._tb.add_scalar('train/loss',
                             tr_epoch['train_loss'], epoch_idx)
-        tr_d = tr_epoch['train_dices']
-        if tr_d is not None:
-            for thr in tr_d:
-                self._tb.add_scalar('train/dice_th{0}'.format(thr),
-                                    tr_d[thr], epoch_idx)
+        # tr_d = tr_epoch['train_dices']
+        # if tr_d is not None:
+        #     for thr in tr_d:
+        #         self._tb.add_scalar('train/dice_th{0}'.format(thr),
+        #                             tr_d[thr], epoch_idx)
 
         # Validation results:
         # for k, v in self.__flatten_validation_results(va_epoch).items():
         #     self._tb.add_scalar('val/{0}'.format(k), v, epoch_idx)
-        for label in va_epoch_agg_l:
-            for k, v in va_epoch_agg_l[label].items():
-                self._tb.add_scalar('{0}/{1}'.format(label, k),
+        for label in va_epoch:
+            if label == 'all':
+                continue
+            if len(label) == 2:
+                label_name = '{}__{}'.format(label[0], label[1])
+            else:
+                label_name = str(label)
+            for k, v in va_epoch[label].items():
+                self._tb.add_scalar('{0}/{1}'.format(label_name, k),
                                     v, epoch_idx)
-        for k, v in va_epoch_agg.items():
+
+        for k, v in va_epoch['all'].items():
             self._tb.add_scalar('{0}'.format(k, v, epoch_idx),
                                 v, epoch_idx)
+
 
     def print_validation_results(self, val_label_avg_results, val_avg_results):
         """Prints the results for each label, macro-averaged over images,

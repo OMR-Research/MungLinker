@@ -30,7 +30,8 @@ def evaluate_clf(pred_classes, true_classes):
 
 
 def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
-                           flatten_results=False, retain_negative=False):
+                           flatten_results=False, retain_negative=False,
+                           min_support=10):
     """Produce a dict of evaluation results for individual class pairs
     in the data. (Note that grammar restrictions are already built into
     that, if a grammar is used.) By default, retains only the recall, precision,
@@ -44,6 +45,9 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
 
     :param retain_negative: If set, will not discard the negative class result
         in per-class data. [NOT IMPLEMENTED]
+
+    :param min_support: In order to be included in the output, a class pair
+        has to have a support of at least this many examples.
     """
     class_pair_index = {}
     for i, (m_fr, m_to, tc, pc) in enumerate(zip(mungos_from, mungos_to,
@@ -64,7 +68,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
             cp_results_all['support'] = len(cpi)
         elif isinstance(cp_results_all['support'], list):
             cp_results_all['support'] = cp_results_all['support'].sum()
-        if cp_results_all['support'] == 0:
+        if cp_results_all['support'] < min_support:
             continue
         # print('Cpair {}: results\n{}'.format(cpair, cp_results_all))
         cp_results = {
