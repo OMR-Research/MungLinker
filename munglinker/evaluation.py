@@ -59,6 +59,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
         cp_true = np.array([true_classes[i] for i in cpi])
         cp_pred = np.array([pred_classes[i] for i in cpi])
         cp_results_all = evaluate_clf(cp_pred, cp_true)
+        print('cpair {}: support {}'.format(cpair, cp_results_all['support']))
         if cp_results_all['support'] is None:
             continue
         if cp_results_all['support'] == 0:
