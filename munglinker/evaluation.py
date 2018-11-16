@@ -62,8 +62,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
             'rec': cp_results_all['rec'][1],
             'prec': cp_results_all['prec'][1],
             'fsc': cp_results_all['fsc'][1],
-            'support': cp_results_all['support'],
-            'loss': cp_results_all['loss']}
+            'support': cp_results_all['support']}
         if flatten_results:
             cpair_name = '__'.join(*cpair)
             for k, v in cp_results.items():
@@ -87,7 +86,8 @@ def print_class_pair_results(class_pair_results, min_support=100):
             continue
         cpair_name = '__'.join(*cpair)
         for k in ['rec', 'prec', 'fsc', 'support', 'loss']:
-            print('{}__{}'.format(cpair_name, k), values[k])
+            if k in values:
+                print('{}__{}'.format(cpair_name, k), values[k])
 
 
 
