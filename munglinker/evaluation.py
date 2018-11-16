@@ -50,7 +50,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
         cpair = m_fr.clsname, m_to.clsname
         if cpair not in class_pair_index:
             class_pair_index[cpair] = []
-        class_pair_index[cpair].extend(i)
+        class_pair_index[cpair].append(i)
 
     class_pair_results = dict()
     for cpair in class_pair_index:
