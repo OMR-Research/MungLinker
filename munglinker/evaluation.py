@@ -92,7 +92,7 @@ def print_class_pair_results(class_pair_results, min_support=100):
         values = class_pair_results[cpair]
         if sum(values['support']) < min_support:
             continue
-        cpair_name = '__'.join(*cpair)
+        cpair_name = '__'.join(cpair)
         for k in ['rec', 'prec', 'fsc', 'support', 'loss']:
             if k in values:
                 print('{}__{}'.format(cpair_name, k), values[k])
