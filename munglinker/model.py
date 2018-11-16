@@ -610,9 +610,14 @@ class PyTorchNetwork(object):
                 self._tb.add_scalar('{0}/{1}'.format(label_name, k),
                                     v, epoch_idx)
 
+        print(va_epoch['all'])
         for k, v in va_epoch['all'].items():
-            self._tb.add_scalar('{0}'.format(k, v, epoch_idx),
-                                v[-1], epoch_idx)
+            try:
+                self._tb.add_scalar('{0}'.format(k, v, epoch_idx),
+                                    v, epoch_idx)
+            except AssertionError:
+                self._tb.add_scalar('{0}'.format(k, v, epoch_idx),
+                                    v[-1], epoch_idx)
 
 
     def print_validation_results(self, val_label_avg_results, val_avg_results):
