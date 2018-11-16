@@ -24,6 +24,7 @@ from torch.autograd import Variable
 from torch.nn.modules.loss import _WeightedLoss, MSELoss
 from torch.optim import Adam
 
+from munglinker.evaluation import eval_clf_by_class_pair, print_class_pair_results
 from munglinker.image_normalization import auto_invert, stretch_intensity, ImageNormalizer
 from munglinker.utils import BColors, show_batch_simple, targets2classes
 
@@ -486,12 +487,14 @@ class PyTorchNetwork(object):
                         #                      va_epoch_agg_l)
 
                     if 'fsc' in va_epoch:
-                        va_loss = -1 * va_epoch['fsc'][-1]
+                        va_loss = -1 * va_epoch['all']['fsc'][-1]
                     else:
-                        va_loss = va_epoch['loss']
+                        va_loss = va_epoch['all']['loss']
                     va_losses.append(va_loss)
 
-                    print('Validation results: {}'.format(pprint.pformat(va_epoch)))
+                    print('Validation results: {}'.format(pprint.pformat(va_epoch['all'])))
+
+                    print_class_pair_results(va_epoch)
 
                 ##################################
                 # Log validation loss
@@ -664,7 +667,8 @@ class PyTorchNetwork(object):
         batchwise_val_preds = collections.OrderedDict()
         batchwise_val_targets = collections.OrderedDict()
 
-        val_mungo_pairs = []
+        val_mungos_from = []
+        val_mungos_to = []
         val_pred_classes = []
         val_target_classes = []
         val_results = collections.OrderedDict()
@@ -711,7 +715,8 @@ class PyTorchNetwork(object):
             val_pred_classes.extend(np_pred_classes)
             val_target_classes.extend(np_target_classes)
             if mungos_fr is not None:
-                val_mungo_pairs.extend(list(zip(mungos_fr, mungos_to)))
+                val_mungos_from.extend(mungos_fr)
+                val_mungos_to.extend(mungos_to)
 
             # Log sample outputs. Used mostly for sanity/debugging.
             if batch_idx < 3:
@@ -745,7 +750,15 @@ class PyTorchNetwork(object):
         agg_loss = numpy.mean(losses)
         val_results['loss'] = agg_loss
 
-        return val_results
+        # Compute mistakes signatures per class pair
+        class_pair_results = eval_clf_by_class_pair(val_mungos_from,
+                                                    val_mungos_to,
+                                                    val_target_classes,
+                                                    val_pred_classes)
+
+
+        class_pair_results['all'] = val_results
+        return class_pair_results
 
     def _evaluate_clf(self, pred_classes, true_classes):
         from sklearn.metrics import accuracy_score, precision_recall_fscore_support
@@ -767,39 +780,7 @@ class PyTorchNetwork(object):
     @staticmethod
     def dump_validation_results(dump_root, origs, maps, masks, labels):
         """Dumps the outputs of the detector into the given root."""
-        origs_dir = os.path.join(dump_root, 'orig')
-        if not os.path.isdir(origs_dir):
-            os.mkdir(origs_dir)
-        for val_img_name in origs:
-            filename = os.path.join(origs_dir, val_img_name + '.png')
-            img = origs[val_img_name]
-            # img *= (255 / img.max())
-            imsave(filename, img)
-
-
-        masks_dir = os.path.join(dump_root, 'prob_mask')
-        if not os.path.isdir(masks_dir):
-            os.mkdir(masks_dir)
-        for val_img_name in masks:
-            filename = os.path.join(masks_dir, val_img_name + '.png')
-            img = masks[val_img_name] * 255
-            imsave(filename, img)
-
-        maps_dir = os.path.join(dump_root, 'prob_map')
-        if not os.path.isdir(maps_dir):
-            os.mkdir(maps_dir)
-        for val_img_name in maps:
-            filename = os.path.join(maps_dir, val_img_name + '.png')
-            img = maps[val_img_name] * 255
-            imsave(filename, img)
-
-        labels_dir = os.path.join(dump_root, 'pred_labels')
-        if not os.path.isdir(labels_dir):
-            os.mkdir(labels_dir)
-        for val_img_name in labels:
-            filename = os.path.join(labels_dir, val_img_name + '.png')
-            img = labels[val_img_name]
-            imsave(filename, img)
+        raise NotImplementedError()
 
     @staticmethod
     def __flatten_validation_results(validation_results):
