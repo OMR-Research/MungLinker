@@ -61,6 +61,8 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
         cp_results_all = evaluate_clf(cp_pred, cp_true)
         if cp_results_all['support'] is None:
             continue
+        if cp_results_all['support'] == 0:
+            continue
         # print('Cpair {}: results\n{}'.format(cpair, cp_results_all))
         cp_results = {
             'rec': cp_results_all['rec'],
