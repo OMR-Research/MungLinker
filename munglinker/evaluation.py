@@ -59,7 +59,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
         cp_true = np.array([true_classes[i] for i in cpi])
         cp_pred = np.array([pred_classes[i] for i in cpi])
         cp_results_all = evaluate_clf(cp_pred, cp_true)
-        print('cpair {}: support {}'.format(cpair, cp_results_all['support']))
+        # print('cpair {}: support {}'.format(cpair, cp_results_all['support']))
         if cp_results_all['support'] is None:
             cp_results_all['support'] = len(cpi)
         elif isinstance(cp_results_all['support'], list):
@@ -82,7 +82,7 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
     return class_pair_results
 
 
-def print_class_pair_results(class_pair_results, min_support=100):
+def print_class_pair_results(class_pair_results, min_support=20):
     """Prints the class pair results ordered by support, from more to less.
     Prints only class pairs that have at least ``min_support`` positive
     plus negative examples."""
@@ -92,7 +92,6 @@ def print_class_pair_results(class_pair_results, min_support=100):
                            key=lambda cp: class_pair_results[cp]['support'],
                            reverse=True)
     for cpair in cpair_ordered:
-        print('cpair {}'.format(cpair))
         values = class_pair_results[cpair]
         if values['support'] < min_support:
             continue
