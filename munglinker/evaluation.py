@@ -101,7 +101,7 @@ def print_class_pair_results(class_pair_results, min_support=20):
         for k in ['rec', 'prec', 'fsc', 'support', 'loss']:
             if k in values:
                 print('{}__{}'.format(cpair_name, k), values[k])
-
+        print('---------')
 
 
 ##############################################################################
