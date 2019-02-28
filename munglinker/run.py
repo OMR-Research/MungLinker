@@ -215,7 +215,7 @@ def main(args):
         logging.info('Loading model params from state dict: {0}'.format(args.params))
         params = torch.load(args.params)
         net.load_state_dict(params)
-        model = PyTorchNetwork(net=net, print_architecture=False)
+        model = PyTorchNetwork(net=net)
 
     ########################################################
     # Prepare runner

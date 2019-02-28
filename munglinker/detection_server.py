@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-"""This is a script that..."""
+"""This is a script that runs the object detection server.
+Will be adapted for munglinker later."""
 from __future__ import print_function, unicode_literals
 
 import argparse
@@ -117,12 +118,12 @@ def load_lasagne_model(primitive,
     # init mask hull net
     model = select_model(primitive_model)
     net = model.build_model()
-    detector = SegmentationNetwork(net, print_architecture=False)
+    detector = SegmentationNetwork(net)
     detector.load(params_file)
 
     # init convex hull net
     net_ch = model.build_model()
-    detector_ch = SegmentationNetwork(net_ch, print_architecture=False)
+    detector_ch = SegmentationNetwork(net_ch)
     detector_ch.load(params_file_ch)
 
     omr.add_primitives_detector(primitive, detector, detector_ch)

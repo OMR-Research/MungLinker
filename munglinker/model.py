@@ -34,7 +34,7 @@ __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
 
-class FocalLossElemwise(_WeightedLoss):
+class FocalLossElementwise(_WeightedLoss):
     """Elementwise Focal Loss implementation for arbitrary tensors that computes
     the loss element-wise, e.g. for semantic segmentation. Alpha-balancing
     is implemented for entire minibatches instead of per-channel.
@@ -42,13 +42,13 @@ class FocalLossElemwise(_WeightedLoss):
     See: https://arxiv.org/pdf/1708.02002.pdf  -- RetinaNet
     """
     def __init__(self, weight=None, size_average=True, gamma=0, alpha_balance=False):
-        super(FocalLossElemwise, self).__init__(weight, size_average)
+        super(FocalLossElementwise, self).__init__(weight, size_average)
         self.gamma = gamma
         self.alpha_balance = alpha_balance
 
     def forward(self, input, target):
         # Assumes true is a binary tensor.
-        # All operations are elemntwise, unless stated otherwise.
+        # All operations are elementwise, unless stated otherwise.
         # ELementwise cross-entropy
         # xent = true * torch.log(pred) + (1 - true) * torch.log(1 - pred)
 
@@ -85,14 +85,14 @@ class PyTorchTrainingStrategy(object):
                  refine_batch_size=False,
                  improvement_patience=50,
                  optimizer_class=Adam,
-                 loss_fn_class=MSELoss,   # TODO: Back to softmax? This will be bad...
+                 loss_fn_class=MSELoss,  # TODO: Back to softmax? This will be bad...
                  loss_fn_kwargs=dict(),
                  validation_use_detector=False,
                  validation_detector_threshold=0.5,
                  validation_detector_min_area=5,
                  validation_subsample_window=None,
                  validation_stride_ratio=2,
-                 validation_nodetector_subsample_window=None,
+                 validation_no_detector_subsample_window=None,
                  validation_subsample_n=4,
                  validation_outputs_dump_root=None,
                  best_model_by_fscore=False,
@@ -149,7 +149,7 @@ class PyTorchTrainingStrategy(object):
             overlap? The ratio is the square root of the expected number of
             samples for each pixel (...close enough to the center).
 
-        :param validation_nodetector_subsample_window: When validating without
+        :param validation_no_detector_subsample_window: When validating without
             a detector (such as on non-checkpoint epochs, where we only want
             the validation loss), subsample this window.
 
@@ -207,7 +207,7 @@ class PyTorchTrainingStrategy(object):
         self.validation_detector_min_area = validation_detector_min_area
         self.validation_stride_ratio = validation_stride_ratio
         self.validation_subsample_window = validation_subsample_window
-        self.validation_nodetector_subsample_window = validation_nodetector_subsample_window
+        self.validation_nodetector_subsample_window = validation_no_detector_subsample_window
 
         self.validation_outputs_dump_root = validation_outputs_dump_root
 
@@ -244,15 +244,15 @@ class PyTorchNetwork(object):
     Adapted from lasagne_wrapper.network.Network by Matthias Dorfer
     (matthias.dorfer@jku.at).
     """
-    def __init__(self, net, print_architecture=False):
+    def __init__(self, net):
         self.net = net
         self.cuda = torch.cuda.is_available()
 
         if self.cuda:
             self.net.cuda()
 
-        # Logging
-        self._tb = None
+        # Logging to tesnorboard through here
+        self._tensorboard = None
 
     def predict(self,
                 data_pool,
@@ -286,7 +286,7 @@ class PyTorchNetwork(object):
 
         # Aggregate results (two-way)
         all_mungo_pairs = []
-        all_np_preds = numpy.zeros((0, 2))
+        all_np_predictions = numpy.zeros((0, 2))
 
         # Run generator
         for batch_idx, _data_point in enumerate(generator):
@@ -295,15 +295,15 @@ class PyTorchNetwork(object):
             mungo_pairs = list(mungo_pairs)
             all_mungo_pairs.extend(mungo_pairs)
 
-            inputs = self._np2torch(np_inputs)
-            pred = self.net(inputs)
-            np_pred = self._torch2np(pred)
-            all_np_preds = numpy.concatenate((all_np_preds, np_pred))
+            inputs = self.__np2torch(np_inputs)
+            predictions = self.net(inputs)
+            np_predictions = self.__torch2np(predictions)
+            all_np_predictions = numpy.concatenate((all_np_predictions, np_predictions))
 
-        all_np_pred_classes = targets2classes(all_np_preds)
+        all_np_predicted_classes = targets2classes(all_np_predictions)
         logging.info('Prediction: {} out of {} positive'
-                     ''.format(all_np_pred_classes.sum(), all_np_pred_classes.size))
-        return all_mungo_pairs, all_np_pred_classes
+                     ''.format(all_np_predicted_classes.sum(), all_np_predicted_classes.size))
+        return all_mungo_pairs, all_np_predicted_classes
 
     def fit(self,
             data,
@@ -352,23 +352,23 @@ class PyTorchNetwork(object):
             if out_path and not os.path.isdir(out_path):
                 os.mkdir(out_path)
             from tensorboardX import SummaryWriter
-            self._tb = SummaryWriter(os.path.join(tensorboard_log_path,
-                                                  training_strategy.name),
-                                     comment=training_strategy.name)
+            self._tensorboard = SummaryWriter(os.path.join(tensorboard_log_path,
+                                                           training_strategy.name),
+                                              comment=training_strategy.name)
 
-        # Adaptive learning rate..?
-        lr = training_strategy.ini_learning_rate
+        # Extra variable for learning rate, since it attenuates during training
+        learning_rate = training_strategy.ini_learning_rate
 
         # We don't need to create iter functions.
 
         # Initialize evaluation outputs
-        tr_results, va_results = [], []
+        training_results, validation_results = [], []
 
         # Train and validation loss, for early stopping
-        tr_losses, va_losses = [numpy.inf], [numpy.inf]
+        training_losses, validation_losses = [numpy.inf], [numpy.inf]
 
         # Early stopping
-        last_improvement = 0
+        epochs_since_last_improvement = 0
         best_model = self.net.state_dict()
 
         # Refinement
@@ -376,9 +376,9 @@ class PyTorchNetwork(object):
         refinement_steps = 0
 
         # Tracking
-        best_va_dice = 0.0
-        best_tr_loss, best_va_loss = 1e7, 1e7
-        prev_fsc_tr, prev_fsc_va = 0.0, 0.0
+        best_validation_dice = 0.0
+        best_training_loss, best_validation_loss = 1e7, 1e7
+        previous_fscore_training, previous_fscore_validation = 0.0, 0.0
 
         print("Starting training...")
         _start_time = time.time()
@@ -387,9 +387,9 @@ class PyTorchNetwork(object):
             ##################################################################
             # Preparation
 
-            best_loss = best_tr_loss
-            #if training_strategy.best_model_by_fscore:
-            #    best_loss = prev_fsc_tr
+            best_loss = best_training_loss
+            if training_strategy.best_model_by_fscore:
+               best_loss = previous_fscore_training
 
             # Set batch sizes.
             data['train'].batch_size = training_strategy.batch_size
@@ -397,41 +397,26 @@ class PyTorchNetwork(object):
             # Initialize loss and optimizer
             loss_fn = training_strategy.init_loss_fn()
             optimizer = training_strategy.optimizer_class(self.net.parameters(),
-                                                          lr=lr)
-
-            # Initialize validation
-            # data['valid'].batch_size = 1
-            # val_detector = None
-            # if training_strategy.validation_use_detector:
-            #     pass
-            #     # # Initialize the detector for evaluating detection
-            #     # # performance, as opposed to mere Dice coef.
-            #     # val_detector = ConnectedComponentDetector(
-            #     #     net=self.net,
-            #     #     is_logits=True,
-            #     #     stride_ratio=training_strategy.validation_stride_ratio,
-            #     #     threshold=training_strategy.validation_detector_threshold,
-            #     #     min_area=training_strategy.validation_detector_min_area,
-            #     # )
+                                                          lr=learning_rate)
 
             ##################################################################
             # Iteration
-            for epoch_idx in range(training_strategy.max_epochs):
+            for current_epoch_index in range(training_strategy.max_epochs):
 
-                # print('Epoch {0}'.format(epoch_idx))
+                # print('Epoch {0}'.format(current_epoch_index))
 
                 ##################################################################
                 # Train the epoch
-                tr_epoch = self._train_epoch(data['train'],
-                                             batch_iters['train'],
-                                             loss_fn,
-                                             optimizer)
-                tr_results.append(tr_epoch)
-                tr_loss = tr_epoch['train_loss']
-                tr_losses.append(tr_loss)
+                training_epoch_output = self._train_epoch(data['train'],
+                                                          batch_iters['train'],
+                                                          loss_fn,
+                                                          optimizer)
+                training_results.append(training_epoch_output)
+                training_loss = training_epoch_output['train_loss']
+                training_losses.append(training_loss)
 
                 # Checkpointing
-                if (epoch_idx + 1) % training_strategy.n_epochs_per_checkpoint == 0:
+                if (current_epoch_index + 1) % training_strategy.n_epochs_per_checkpoint == 0:
                     if training_strategy.checkpoint_export_file:
                         if training_strategy.checkpoint_export_file is None:
                             os.makedirs("models", exist_ok=True)
@@ -447,72 +432,46 @@ class PyTorchNetwork(object):
                 ##################################################################
                 # Validation: run with detector on checkpoints, otherwise
                 # only collect loss.
-                print('\nValidating epoch {}'.format(epoch_idx))
+                print('\nValidating epoch {}'.format(current_epoch_index))
 
-                if (epoch_idx + 1) % training_strategy.n_epochs_per_checkpoint != 0:
-                    pass
-
-                    ##################################################################
-                    # # Outside checkpoint.
-                    # # Only run validation without detector, to track validation loss
-                    # # for early-stopping & refinement
-                    # va_epoch = self._validate_epoch(data['valid'],
-                    #                                 batch_iters['valid'],
-                    #                                 loss_fn, training_strategy)
-                    # # _, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
-                    #
-                    # va_loss = va_epoch['loss']
-                    # va_losses.append(va_loss)
-                    #
-                    # print('Validation results: {}'.format(pprint.pformat(va_epoch)))
-                    # # print('\tValidation loss: {0:.6f}'.format(va_loss))
-
-                else:
-                    #########################################################
-                    # This only happens once per n_epochs_per_checkpoint
-                    va_epoch = self._validate_epoch(data['valid'],
+                #########################################################
+                # This only happens once per n_epochs_per_checkpoint
+                if (current_epoch_index + 1) % training_strategy.n_epochs_per_checkpoint == 0:
+                    validation_epoch_output = self._validate_epoch(data['valid'],
                                                     batch_iters['valid'],
                                                     loss_fn, training_strategy)
-                    va_results.append(va_epoch)
-                    # va_epoch_agg_l, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
+                    validation_results.append(validation_epoch_output)
 
-                    # self.print_validation_results(va_epoch_agg_l, va_epoch_agg)
+                    if self._tensorboard is not None:
+                        self.log_epoch_to_tensorboard(current_epoch_index,
+                                                      training_epoch_output,
+                                                      validation_epoch_output)
 
-                    if self._tb is not None:
-                        # print('Logging validation epoch results to tensorboard'
-                        #       ' is not implemented!')
-                        self.log_epoch_to_tb(epoch_idx,
-                                             tr_epoch,
-                                             va_epoch)
-
-                    if 'fsc' in va_epoch:
-                        va_loss = -1 * va_epoch['all']['fsc'][-1]
+                    if 'fsc' in validation_epoch_output:
+                        validation_loss = -1 * validation_epoch_output['all']['fsc'][-1]
                     else:
-                        va_loss = va_epoch['all']['loss']
-                    va_losses.append(va_loss)
+                        validation_loss = validation_epoch_output['all']['loss']
+                    validation_losses.append(validation_loss)
 
-                    print('Validation results: {}'.format(pprint.pformat(va_epoch['all'])))
+                    print('Validation results: {}'.format(pprint.pformat(validation_epoch_output['all'])))
 
-                    print_class_pair_results(va_epoch)
+                    print_class_pair_results(validation_epoch_output)
 
                 ##################################
                 # Log validation loss
 
-                epoch_loss = va_losses[-1]
-                _va_loss_str = '\tValidation loss: {0:.6f}\t(Patience: {1})' \
+                epoch_loss = validation_losses[-1]
+                _validation_loss_string = '\tValidation loss: {0:.6f}\t(Patience: {1})' \
                                ''.format(epoch_loss,
-                                         training_strategy.improvement_patience - last_improvement)
+                                         training_strategy.improvement_patience - epochs_since_last_improvement)
                 if epoch_loss < best_loss:
-                    print(col.print_colored(_va_loss_str, col.OKGREEN), end="\n")
+                    print(col.print_colored(_validation_loss_string, col.OKGREEN), end="\n")
                 else:
-                    print(_va_loss_str)
+                    print(_validation_loss_string)
 
                 ##############################################################
                 # Early-stopping: Check for improvement
                 if epoch_loss < best_loss:
-                    # If the f-score is used, it is inverted in both epoch_loss
-                    # and best_loss.
-                    last_improvement = best_loss - epoch_loss
                     best_loss = epoch_loss
                     best_model = self.net.state_dict()
                     # Save the best model!
@@ -525,17 +484,17 @@ class PyTorchNetwork(object):
                         logging.warning('No file to save the best model is specified'
                                         ' in training strategy!!!')
 
-                    last_improvement = 0
+                    epochs_since_last_improvement = 0
                 else:
-                    last_improvement += 1
+                    epochs_since_last_improvement += 1
 
                 # Early-stopping: continue, refine, or end training
-                if (refinement_stage and (last_improvement > training_strategy.refinement_patience)) \
-                    or (last_improvement > training_strategy.improvement_patience):
+                if (refinement_stage and (epochs_since_last_improvement > training_strategy.refinement_patience)) \
+                    or (epochs_since_last_improvement > training_strategy.improvement_patience):
                     print('Early-stopping: exceeded patience in epoch {0}'
-                          ''.format(epoch_idx))
+                          ''.format(current_epoch_index))
 
-                    last_improvement = 0
+                    epochs_since_last_improvement = 0
                     refinement_stage = True
                     if refinement_steps < training_strategy.n_refinement_steps:
                         self.update_learning_rate(optimizer,
@@ -549,21 +508,13 @@ class PyTorchNetwork(object):
                         print('---------------------------------')
                         print('Final validation:\n')
 
-                        va_epoch = self._validate_epoch(data['valid'], loss_fn, training_strategy)
-                        va_results.append(va_epoch)
+                        validation_epoch_output = self._validate_epoch(data['valid'], loss_fn, training_strategy)
+                        validation_results.append(validation_epoch_output)
 
-                        # (Aggregate across images, macro-averages per label and overall)
-                        # va_epoch_agg_l, va_epoch_agg = self.__aggregate_validation_results(va_epoch)
-                        #
-                        # self.print_validation_results(va_epoch_agg_l, va_epoch_agg)
-
-                        # Log results to TensorBoard
-                        if self._tb is not None:
-                            # Log epoch results to tensorboard.
-                            # # Training results:
-                            self.log_epoch_to_tb(epoch_idx,
-                                                 tr_epoch,
-                                                 va_epoch)
+                        if self._tensorboard is not None:
+                            self.log_epoch_to_tensorboard(current_epoch_index,
+                                                          training_epoch_output,
+                                                          validation_epoch_output)
 
                         break
 
@@ -587,115 +538,61 @@ class PyTorchNetwork(object):
         else:
             return best_loss
 
-    def log_epoch_to_tb(self, epoch_idx, tr_epoch, va_epoch):
-        self._tb.add_scalar('train/loss',
-                            tr_epoch['train_loss'], epoch_idx)
-        # tr_d = tr_epoch['train_dices']
-        # if tr_d is not None:
-        #     for thr in tr_d:
-        #         self._tb.add_scalar('train/dice_th{0}'.format(thr),
-        #                             tr_d[thr], epoch_idx)
+    def log_epoch_to_tensorboard(self, epoch_index,
+                                 training_epoch_outputs,
+                                 validation_epoch_outputs):
 
-        # Validation results:
-        # for k, v in self.__flatten_validation_results(va_epoch).items():
-        #     self._tb.add_scalar('val/{0}'.format(k), v, epoch_idx)
-        for label in va_epoch:
+        self._tensorboard.add_scalar('train/loss',
+                                     training_epoch_outputs['train_loss'], epoch_index)
+
+        for label in validation_epoch_outputs:
             if label == 'all':
                 continue
             if len(label) == 2:
                 label_name = '{}__{}'.format(label[0], label[1])
             else:
                 label_name = str(label)
-            for k, v in va_epoch[label].items():
-                self._tb.add_scalar('{0}/{1}'.format(label_name, k),
-                                    v, epoch_idx)
+            for k, v in validation_epoch_outputs[label].items():
+                self._tensorboard.add_scalar('{0}/{1}'.format(label_name, k),
+                                             v, epoch_index)
 
-        print(va_epoch['all'])
-        for k, v in va_epoch['all'].items():
+        print(validation_epoch_outputs['all'])
+        for k, v in validation_epoch_outputs['all'].items():
             try:
-                self._tb.add_scalar('{0}'.format(k, v, epoch_idx),
-                                    v, epoch_idx)
+                self._tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
+                                             v, epoch_index)
             except AssertionError:
-                self._tb.add_scalar('{0}'.format(k, v, epoch_idx),
-                                    v[-1], epoch_idx)
+                self._tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
+                                             v[-1], epoch_index)
 
-
-    def print_validation_results(self, val_label_avg_results, val_avg_results):
-        """Prints the results for each label, macro-averaged over images,
-        and macro-averaged over each label.
-
-        :param val_label_avg_results: Dict of results per label. Each dict
-            element is expected to be again a dict with at least ``dice``,
-            ``prec``, ``rec`` and ``fsc`` element.
-
-        :param val_avg_results: A dict with the ``dice``, ``prec``, ``rec``
-            and ``fsc`` keys.
-        """
-        for output_label in val_label_avg_results:
-            # print('\t{0}:'.format(output_label))
-            l_val_results = val_label_avg_results[output_label]
-            print('{4}:\t\tDice: {0:.3f},'
-                  ' Precision: {1:.3f},'
-                  ' Recall: {2:.3f},'
-                  ' F-score: {3:.3f}'
-                  ''.format(l_val_results['dice'],
-                            l_val_results['prec'],
-                            l_val_results['rec'],
-                            l_val_results['fsc'],
-                            output_label))
-
-        if len(val_label_avg_results) > 1:
-            print('All:\t\tDice: {0:.3f},'
-                  ' Precision: {1:.3f},'
-                  ' Recall: {2:.3f},'
-                  ' F-score: {3:.3f}'
-                  ''.format(val_avg_results['dice'],
-                            val_avg_results['prec'],
-                            val_avg_results['rec'],
-                            val_avg_results['fsc']))
-
-    def _validate_epoch(self, data_pool, valid_batch_iter,
-                        loss_fn, training_strategy,
+    def _validate_epoch(self, data_pool, validation_batch_iterator,
+                        loss_function, training_strategy,
                         estimate_dices=False,
                         debug_mode=False):
         """Run one epoch of validation. Returns a dict of validation results."""
-        # This is what we eventually want, but let's do this after we have
-        # debugged trainings:
-        #
-        # if detector is not None:
-        #     return evaluate_detection(data_loader=valid_loader, detector=detector,
-        #                               show_results=False,
-        #                               subsample_window=None)
         # Initialize data feeding from iterator
-        iterator = valid_batch_iter(data_pool)
-        val_generator = threaded_generator_from_iterator(iterator)
+        iterator = validation_batch_iterator(data_pool)
+        validation_generator = threaded_generator_from_iterator(iterator)
 
-        n_batches = len(data_pool) // valid_batch_iter.batch_size
+        number_of_batches = len(data_pool) // validation_batch_iterator.batch_size
 
-        # Batch-wise results.
-        batchwise_val_results = collections.OrderedDict()
-        batchwise_val_preds = collections.OrderedDict()
-        batchwise_val_targets = collections.OrderedDict()
-
-        val_mungos_from = []
-        val_mungos_to = []
-        val_pred_classes = []
-        val_target_classes = []
-        val_results = collections.OrderedDict()
+        validation_mungos_from = []
+        validation_mungos_to = []
+        validation_predicted_classes = []
+        validation_target_classes = []
+        validation_results = collections.OrderedDict()
         losses = []
 
-        for batch_idx in range(n_batches):
-            # if detector is not None:
-            #     print('\tImage {0}: {1}'.format(i, val_img_name))
+        for current_batch_index in range(number_of_batches):
 
             # Validation iterator might also output the MuNGOs,
             # for improved evaluation options.
-            val_batch = next(val_generator)
-            mungos_fr, mungos_to = None, None
-            if len(val_batch) == 4:
-                mungos_fr, mungos_to, np_inputs, np_targets = val_batch
+            validation_batch = next(validation_generator)
+            mungos_from, mungos_to = None, None
+            if len(validation_batch) == 4:
+                mungos_from, mungos_to, np_inputs, np_targets = validation_batch
             else:
-                np_inputs, np_targets = val_batch
+                np_inputs, np_targets = validation_batch
 
             inputs = Variable(torch.from_numpy(np_inputs).float())
             targets = Variable(torch.from_numpy(np_targets).float())
@@ -703,76 +600,56 @@ class PyTorchNetwork(object):
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            pred = self.net(inputs)
-            np_pred = self._torch2np(pred)
-            np_pred_classes = targets2classes(np_pred)
+            predictions = self.net(inputs)
+            np_predictions = self.__torch2np(predictions)
+            np_predicted_classes = targets2classes(np_predictions)
             np_target_classes = targets2classes(np_targets)
 
-            loss = loss_fn(pred, targets)
-            losses.append(self._torch2np(loss))
+            loss = loss_function(predictions, targets)
+            losses.append(self.__torch2np(loss))
 
             # Compute all evaluation metrics available for current batch.
             current_batch_results = collections.OrderedDict()
-            current_batch_results['loss'] = self._torch2np(loss)
-            current_batch_metrics = self._evaluate_clf(np_pred_classes, np_target_classes)
+            current_batch_results['loss'] = self.__torch2np(loss)
+            current_batch_metrics = self.__evaluate_classification(np_predicted_classes, np_target_classes)
             for k, v in current_batch_metrics.items():
                 current_batch_results[k] = v
 
-            # ...let's not collect batchwise evaluation metrics.
-            # batchwise_val_preds[batch_idx] = np_pred
-            # batchwise_val_targets[batch_idx] = np_targets
-
-            val_pred_classes.extend(np_pred_classes)
-            val_target_classes.extend(np_target_classes)
-            if mungos_fr is not None:
-                val_mungos_from.extend(mungos_fr)
-                val_mungos_to.extend(mungos_to)
+            validation_predicted_classes.extend(np_predicted_classes)
+            validation_target_classes.extend(np_target_classes)
+            if mungos_from is not None:
+                validation_mungos_from.extend(mungos_from)
+                validation_mungos_to.extend(mungos_to)
 
             # Log sample outputs. Used mostly for sanity/debugging.
-            if batch_idx < 3:
-                # This will get relegated to logging; for now
-                # we print directly.
-                logging.info('\t{}: Targets: {}'.format(batch_idx, np_targets[:10]))
-                logging.info('\t{}: Outputs: {}'.format(batch_idx, np_pred[:10]))
-
-        # # Dumping output images -- only with detector
-        # if detector is not None:
-        #     if training_strategy.validation_outputs_dump_root is not None:
-        #         if self.net.n_output_channels > 1:
-        #             print('(Cannot currently dump results for more than 1 output channel.)')
-        #         else:
-        #             output_dir = os.path.join(training_strategy.validation_outputs_dump_root,
-        #                                       training_strategy.name)
-        #             if not os.path.isdir(output_dir):
-        #                 os.mkdir(output_dir)
-        #             self.dump_validation_results(output_dir,
-        #                                          validation_origs,
-        #                                          validation_prob_maps,
-        #                                          validation_prob_masks,
-        #                                          validation_pred_labels)
+            _first_n_batch_results_to_print = 3
+            if current_batch_index < _first_n_batch_results_to_print:
+                logging.info('\t{}: Targets: {}'.format(current_batch_index, np_targets[:10]))
+                logging.info('\t{}: Outputs: {}'.format(current_batch_index, np_predictions[:10]))
 
         # Compute evaluation metrics aggregated over validation set.
-        agg_metrics = self._evaluate_clf(val_pred_classes, val_target_classes)
-        for k, v in agg_metrics.items():
-            val_results[k] = v
-        agg_loss = numpy.mean(losses)
-        val_results['loss'] = agg_loss
+        aggregated_metrics = self.__evaluate_classification(validation_predicted_classes,
+                                                            validation_target_classes)
+        for k, v in aggregated_metrics.items():
+            validation_results[k] = v
+        aggregated_loss = numpy.mean(losses)
+        validation_results['loss'] = aggregated_loss
 
         # Compute mistakes signatures per class pair
-        class_pair_results = eval_clf_by_class_pair(val_mungos_from,
-                                                    val_mungos_to,
-                                                    val_target_classes,
-                                                    val_pred_classes)
+        class_pair_results = eval_clf_by_class_pair(validation_mungos_from,
+                                                    validation_mungos_to,
+                                                    validation_target_classes,
+                                                    validation_predicted_classes)
 
-
-        class_pair_results['all'] = val_results
+        class_pair_results['all'] = validation_results
         return class_pair_results
 
-    def _evaluate_clf(self, pred_classes, true_classes):
+    @staticmethod
+    def __evaluate_classification(predicted_classes, true_classes):
         from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-        accuracy = accuracy_score(true_classes, pred_classes)
+        accuracy = accuracy_score(true_classes, predicted_classes)
         precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes,
-                                                                               pred_classes)
+                                                                               predicted_classes)
         return {'acc': accuracy,
                 'prec': precision,
                 'rec': recall,
@@ -781,8 +658,8 @@ class PyTorchNetwork(object):
 
     def update_learning_rate(self, optimizer, multiplier):
         for param_group in optimizer.param_groups:
-            lr = param_group['lr']
-            param_group['lr'] = lr * multiplier
+            learning_rate = param_group['lr']
+            param_group['lr'] = learning_rate * multiplier
             print('\tUpdate learning rate to {0}'.format(param_group['lr']))
 
     @staticmethod
@@ -842,35 +719,33 @@ class PyTorchNetwork(object):
 
         return agg_results_per_label, agg_overall
 
-    def _train_epoch(self, data_pool, train_batch_iter, loss_fn, optimizer,
+    def _train_epoch(self, data_pool, training_batch_iterator, loss_function, optimizer,
                      estimate_dices=False,
                      debug_mode=False):
         """Run one epoch of training."""
-        col = BColors()
+        colors = BColors()
 
         # Initialize data feeding from iterator
-        iterator = train_batch_iter(data_pool)
+        iterator = training_batch_iterator(data_pool)
         generator = threaded_generator_from_iterator(iterator)
 
-        n_batches = len(data_pool) // train_batch_iter.batch_size
+        n_batches = len(data_pool) // training_batch_iterator.batch_size
         # print('n. of train entities: {}'.format(len(data_pool)))
-        # print('batch size: {}'.format(train_batch_iter.batch_size))
+        # print('batch size: {}'.format(training_batch_iterator.batch_size))
 
         # Monitors
         batch_train_losses = []
-        # dice_thresholds = [0.1, 0.3, 0.5, 0.7, 0.9]
-        # train_dices_per_threshold = {thr: [] for thr in dice_thresholds}
 
         # Time tracking
-        _batch_times = numpy.zeros(5, dtype=numpy.float32)
-        _epoch_start = time.time()
-        _after = time.time()
+        elapsed_time_for_last_five_batches = numpy.zeros(5, dtype=numpy.float32)
+        epoch_start_time = time.time()
+        last_time_checked = time.time()
 
         # Training loop, one epoch
-        for batch_idx, _data_point in enumerate(generator):
+        for current_batch_index, data_point in enumerate(generator):
             # _data_point = next(generator)
             # print("Batch {} / {}".format(batch_idx, n_batches))
-            np_inputs, np_targets = _data_point  # next(generator)
+            np_inputs, np_targets = data_point  # next(generator)
 
             # This assumes that the generator does not already
             # return Torch Variables, which the model can however
@@ -883,42 +758,36 @@ class PyTorchNetwork(object):
 
             # One training update:
             optimizer.zero_grad()
-            preds = self.net(inputs)
-            loss = loss_fn(preds, targets)
+            predictions = self.net(inputs)
+            loss = loss_function(predictions, targets)
             loss.backward()
             optimizer.step()
 
             # Monitors update
-            batch_train_losses.append(self._torch2np(loss))
+            batch_train_losses.append(self.__torch2np(loss))
 
             # Train time tracking update
-            _batch_time = time.time() - _after
-            _after = time.time()
-            _train_time = _after - _epoch_start
+            elapsed_time_for_current_epoch = time.time() - epoch_start_time
+            elapsed_time_for_current_batch = time.time() - last_time_checked
+            last_time_checked = time.time()
 
-            _batch_times[0:4] = _batch_times[1:5]
-            _batch_times[4] = _batch_time
-            _ups = 1.0 / _batch_times.mean()
+            elapsed_time_for_last_five_batches[0:4] = elapsed_time_for_last_five_batches[1:5]
+            elapsed_time_for_last_five_batches[4] = elapsed_time_for_current_batch
+            updates_per_second = 1.0 / elapsed_time_for_last_five_batches.mean()
 
             # Logging during training
-            perc = 100 * (float(batch_idx) / n_batches)
-            dec = int(perc // 4)
+            percent_of_epoch_complete = 100 * (float(current_batch_index) / n_batches)
+            dec = int(percent_of_epoch_complete // 4)
             progbar = "|" + dec * "#" + (25 - dec) * "-" + "|"
-            vals = (perc, progbar, _train_time, _ups,
-                    numpy.mean(batch_train_losses))
-            loss_str = " (%d%%) %s time: %.2fs, ups: %.2f, loss: %.5f" % vals
-            if batch_idx != n_batches - 1:
-                print(col.print_colored(loss_str, col.WARNING), end="\r")
+            loss_printout_values = (percent_of_epoch_complete, progbar,
+                                    elapsed_time_for_current_epoch, updates_per_second,
+                                    numpy.mean(batch_train_losses))
+            loss_printout_string = " (%d%%) %s time: %.2fs, ups: %.2f, loss: %.5f" % loss_printout_values
+            if current_batch_index != n_batches - 1:
+                print(colors.print_colored(loss_printout_string, colors.WARNING), end="\r")
             else:
-                print(col.print_colored(loss_str, col.OKBLUE), end="\n")
+                print(colors.print_colored(loss_printout_string, colors.OKBLUE), end="\n")
             sys.stdout.flush()
-
-            # Visualizing performance on training data
-            if ((batch_idx % 100) == 0) and (self._torch2np(loss) < 100):
-                pass
-                # show_batch_simple(np_inputs, np_targets)
-                # show_onset_counter_predictions(inputs, targets, self.net)
-                # show_onset_sequence_predictions(inputs, targets, self.net)
 
         # Aggregate monitors
         avg_train_loss = numpy.mean(batch_train_losses)
@@ -931,7 +800,7 @@ class PyTorchNetwork(object):
 
         return output
 
-    def _torch2np(self, var):
+    def __torch2np(self, var):
         """Converts the PyTorch Variable or tensor to numpy."""
         if self.cuda:
             output = var.data.cpu().numpy()
@@ -940,7 +809,7 @@ class PyTorchNetwork(object):
 
         return output
 
-    def _np2torch(self, ndarray):
+    def __np2torch(self, ndarray):
         output = Variable(torch.from_numpy(ndarray).float())
         if self.cuda:
             output = output.cuda()

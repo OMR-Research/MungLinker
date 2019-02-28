@@ -182,7 +182,7 @@ def main(args):
     loss_fn_cls = BCELoss
     loss_fn_kwargs = dict()
     # if args.focal_loss:
-    #     loss_fn_cls = FocalLossElemwise
+    #     loss_fn_cls = FocalLossElementwise
     #     loss_fn_kwargs = {'gamma': args.focal_loss_gamma}
     #     # The focal loss needs to have sigmoid applied to it already!
     #     model.net.apply_sigmoid = True
@@ -204,7 +204,7 @@ def main(args):
                                        batch_size=args.batch_size,
                                        validation_subsample_window=None,
                                        validation_stride_ratio=None,
-                                       validation_nodetector_subsample_window=None,
+                                       validation_no_detector_subsample_window=None,
                                        validation_outputs_dump_root=args.validation_outputs_dump_root,
                                        checkpoint_export_file=checkpoint_export_file,
                                        best_params_file=args.export,
@@ -213,7 +213,7 @@ def main(args):
         strategy.improvement_patience = args.n_epochs + 1
         strategy.early_stopping = False
 
-    model = PyTorchNetwork(net=net, print_architecture=True)
+    model = PyTorchNetwork(net=net)
 
     # ------------------------------------------------------------------------
     # Run training.
