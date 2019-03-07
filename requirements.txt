@@ -2,3 +2,4 @@ pytorch
 numpy>=1.13.3
 muscima
 omrdatasettools
+tqdm
