@@ -18,11 +18,7 @@ __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
 
-# init color printer
-class BColors:
-    """
-    Colored command line output formatting
-    """
+class ColoredCommandLine:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKGREEN = '\033[92m'
@@ -32,13 +28,9 @@ class BColors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-    def __init__(self):
-        """ Constructor """
-        pass
-
-    def print_colored(self, string, color):
-        """ Change color of string """
-        return color + string + BColors.ENDC
+    def print(self, string, color, end="\n") -> None:
+        """ Prints a string in the given color or style """
+        print(color + string + ColoredCommandLine.ENDC, end=end)
 
 
 PRIMITIVES = ["16th_rest",
@@ -76,7 +68,6 @@ MULTICHANNEL_ROOT = '/Users/hajicj/jku/omr_baseline_matthias'
 
 
 def build_experiment_name(args):
-
     split = os.path.splitext(os.path.basename(args.split_file))[0]
     config = os.path.splitext(os.path.basename(args.config_file))[0]
     model = args.model
@@ -173,9 +164,9 @@ class ResultsServer(object):
 
 
 def collect_and_plot_results(results_root, primitives=PRIMITIVES,
-                 testset='indep',
-                 thresholds=(0.25, 0.5, 0.75),
-                 detectors=('mask', 'combined', 'conv_hull')):
+                             testset='indep',
+                             thresholds=(0.25, 0.5, 0.75),
+                             detectors=('mask', 'combined', 'conv_hull')):
     """Show the results for the given primitives on the given test set.
     The thresholds and outputs can optionally be supplied to restrict the results
     to a subset of the possible values.
@@ -383,7 +374,7 @@ def generate_random_mm(shape, max_duration_frames=40, onset_density=0.001):
 
     for x, y in zip(*onsets_matrix.nonzero()):
         duration = np.random.randint(0, max_duration_frames)
-        midi_matrix[x, y:y+duration+1] = 1
+        midi_matrix[x, y:y + duration + 1] = 1
 
     print('Built random MIDI matrix of shape {}: total onsets {}, total nonzero entries {} / {}'
           ''.format(shape, n_onsets, midi_matrix.sum(), midi_matrix.size))
@@ -414,6 +405,7 @@ class MockNetwork(object):
     """This class is a mock object for testing pipelines when no real trained
     model is available. Outputs random labels.
     """
+
     def predict(self, data_pool, runtime_batch_iterator):
         # Ensure correct data pool behavior.
         data_pool.resample_train_entities = False
@@ -479,6 +471,7 @@ def cuda_works():
 
     return True
 
+
 ##############################################################################
 # Visualizations
 
@@ -497,7 +490,7 @@ def plot_batch_patches(X, y, max_items=6):
     n_rows = int(np.ceil(n_items / n_items_per_row))
 
     for i in range(min(X.shape[0], max_items)):
-        plt.subplot(n_rows, n_items_per_row, i+1)
+        plt.subplot(n_rows, n_items_per_row, i + 1)
         patch = X[i]
         target = y[i]
 
@@ -538,7 +531,7 @@ def show_batch_simple(X, y, max_items=3):
     for i, (x_i, y_i) in enumerate(zip(X, y)):
         if i >= max_items:
             break
-        plt.subplot(n_rows, 1, i+1)
+        plt.subplot(n_rows, 1, i + 1)
         plt.imshow(x_i[0], cmap='gray', origin='upper', aspect='auto', interpolation='nearest')
         plt.xlabel(i)
         plt.ylabel(y_i)
@@ -547,7 +540,6 @@ def show_batch_simple(X, y, max_items=3):
 
 
 def show_onset_counter_predictions(X_var, y_true_var, net, max_items=1):
-
     # Get all network intermediate steps
     y_pred = net(X_var)
     conv_out = net.get_conv_output(X_var)
@@ -595,7 +587,6 @@ def show_onset_counter_predictions(X_var, y_true_var, net, max_items=1):
 
 
 def show_onset_sequence_predictions(X_var, y_true_var, net, max_items=1):
-
     # Get all network intermediate steps
     y_pred = net(X_var)
     conv_out = net.get_conv_output(X_var)
@@ -642,7 +633,6 @@ def show_onset_sequence_predictions(X_var, y_true_var, net, max_items=1):
     plt.imshow(softmax_out[:, :, 0], origin='upper', aspect='auto', interpolation='nearest')
     plt.xlabel('Softmax outputs per RNN frame')
     plt.yticks(list(range(net.n_classes_out)))
-
 
     #
     # plt.subplot(3, 1, 3)

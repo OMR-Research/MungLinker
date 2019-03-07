@@ -16,6 +16,7 @@ from muscima.grammar import DependencyGrammar
 from muscima.graph import NotationGraph
 from muscima.inference_engine_constants import _CONST
 from muscima.io import parse_cropobject_list, parse_cropobject_class_list
+from tqdm import tqdm
 
 from munglinker.utils import config2data_pool_dict, load_grammar
 
@@ -240,8 +241,8 @@ class PairwiseMungoDataPool(object):
         self.patch_no_image = patch_no_image
 
         self.zoom = zoom
-        self._zoom_images()
-        self._zoom_mungs()
+        self.__zoom_images()
+        self.__zoom_mungs()
 
         self.grammar = grammar
 
@@ -283,7 +284,7 @@ class PairwiseMungoDataPool(object):
 
         return [mungos_from, mungos_to, patches_batch, targets]
 
-    def _zoom_images(self):
+    def __zoom_images(self):
         images_zoomed = []
         import cv2
         for image in self.images:
@@ -293,7 +294,7 @@ class PairwiseMungoDataPool(object):
             images_zoomed.append(img_zoomed)
         self.images = images_zoomed
 
-    def _zoom_mungs(self):
+    def __zoom_mungs(self):
         if self.zoom is None:
             return
         if self.zoom == 1.0:
@@ -329,7 +330,7 @@ class PairwiseMungoDataPool(object):
         self.train_entities = []
         self._mungo_pair_map = []
         n_entities = 0
-        for i_doc, mung in enumerate(self.mungs):
+        for i_doc, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs for file")):
             object_pairs = get_object_pairs(
                 mung.cropobjects,
                 max_object_distance=self.max_edge_length,
@@ -369,7 +370,7 @@ class PairwiseMungoDataPool(object):
             is the input image, channel 1 is the from-mungo mask,
             channel 2 is the to-mungo mask.
         """
-        m_vert, m_horz = self._compute_patch_center(mungo_from, mungo_to)
+        m_vert, m_horz = self.__compute_patch_center(mungo_from, mungo_to)
         patch_radius_v = self.patch_height // 2
         patch_radius_h = self.patch_width // 2
         t, l, b, r = m_vert - patch_radius_v, \
@@ -449,7 +450,7 @@ class PairwiseMungoDataPool(object):
         return output
 
     @staticmethod
-    def _compute_patch_center(m_from, m_to):
+    def __compute_patch_center(m_from, m_to):
         """Computing the patch center for the given pair
         of objects. Gets returned as (row, column) coordinates
         with respect to the input image.
@@ -529,7 +530,7 @@ def load_munglinker_data_lite(mung_root, images_root,
     if exclude_classes is None:
         exclude_classes = {}
 
-    def _load_mung(filename, exclude_classes=exclude_classes):
+    def __load_mung(filename, exclude_classes=exclude_classes):
         mungos = parse_cropobject_list(filename)
         mung = NotationGraph(mungos)
         objects_to_exclude = [m for m in mungos if m.clsname in exclude_classes]
@@ -537,7 +538,7 @@ def load_munglinker_data_lite(mung_root, images_root,
             mung.remove_vertex(m.objid)
         return mung
 
-    def _load_image(filename):
+    def __load_image(filename):
         import PIL.Image
         image = np.array(PIL.Image.open(filename).convert('L')).astype('uint8')
         return image
@@ -562,11 +563,11 @@ def load_munglinker_data_lite(mung_root, images_root,
     for mung_idx, image_idx in zip(mung_idxs, image_idxs):
         logging.info('Loading mung/image pair {}'.format((mung_idx, image_idx)))
         mung_file = mung_files[mung_idx]
-        mung = _load_mung(mung_file)
+        mung = __load_mung(mung_file)
         mungs.append(mung)
 
         image_file = image_files[image_idx]
-        image = _load_image(image_file)
+        image = __load_image(image_file)
         images.append(image)
 
         if max_items is not None:

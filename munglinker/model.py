@@ -13,10 +13,9 @@ import numpy.random
 import torch
 from torch.autograd import Variable
 
-# This one is a really external dependency
 from munglinker.batch_iterators import threaded_generator_from_iterator
 from munglinker.evaluation import eval_clf_by_class_pair, print_class_pair_results
-from munglinker.utils import BColors, targets2classes
+from munglinker.utils import ColoredCommandLine, targets2classes
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -46,7 +45,7 @@ class PyTorchNetwork(object):
             self.net.cuda()
 
         # Logging to tesnorboard through here
-        self._tensorboard = None
+        self.tensorboard = None
 
     def predict(self,
                 data_pool,
@@ -129,7 +128,7 @@ class PyTorchNetwork(object):
             directory.
         """
         print("Training neural network...")
-        col = BColors()
+        colored_command_line = ColoredCommandLine()
 
         if dump_file is not None:
             out_path = os.path.dirname(dump_file)
@@ -146,9 +145,9 @@ class PyTorchNetwork(object):
             if out_path and not os.path.isdir(out_path):
                 os.mkdir(out_path)
             from tensorboardX import SummaryWriter
-            self._tensorboard = SummaryWriter(os.path.join(tensorboard_log_path,
-                                                           training_strategy.name),
-                                              comment=training_strategy.name)
+            self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path,
+                                                          training_strategy.name),
+                                             comment=training_strategy.name)
 
         # Extra variable for learning rate, since it attenuates during training
         learning_rate = training_strategy.ini_learning_rate
@@ -170,12 +169,10 @@ class PyTorchNetwork(object):
         refinement_steps = 0
 
         # Tracking
-        best_validation_dice = 0.0
         best_training_loss, best_validation_loss = 1e7, 1e7
         previous_fscore_training, previous_fscore_validation = 0.0, 0.0
 
         print("Starting training...")
-        _start_time = time.time()
         try:
 
             ##################################################################
@@ -197,14 +194,12 @@ class PyTorchNetwork(object):
             # Iteration
             for current_epoch_index in range(training_strategy.max_epochs):
 
-                # print('Epoch {0}'.format(current_epoch_index))
-
                 ##################################################################
                 # Train the epoch
-                training_epoch_output = self._train_epoch(data['train'],
-                                                          batch_iters['train'],
-                                                          loss_fn,
-                                                          optimizer)
+                training_epoch_output = self.__train_epoch(data['train'],
+                                                           batch_iters['train'],
+                                                           loss_fn,
+                                                           optimizer)
                 training_results.append(training_epoch_output)
                 training_loss = training_epoch_output['train_loss']
                 training_losses.append(training_loss)
@@ -231,15 +226,14 @@ class PyTorchNetwork(object):
                 #########################################################
                 # This only happens once per n_epochs_per_checkpoint
                 if (current_epoch_index + 1) % training_strategy.n_epochs_per_checkpoint == 0:
-                    validation_epoch_output = self._validate_epoch(data['valid'],
-                                                                   batch_iters['valid'],
-                                                                   loss_fn, training_strategy)
+                    validation_epoch_output = self.__validate_epoch(data['valid'],
+                                                                    batch_iters['valid'],
+                                                                    loss_fn, training_strategy)
                     validation_results.append(validation_epoch_output)
 
-                    if self._tensorboard is not None:
-                        self.log_epoch_to_tensorboard(current_epoch_index,
-                                                      training_epoch_output,
-                                                      validation_epoch_output)
+                    self.__log_epoch_to_tensorboard(current_epoch_index,
+                                                    training_epoch_output,
+                                                    validation_epoch_output)
 
                     if 'fsc' in validation_epoch_output:
                         validation_loss = -1 * validation_epoch_output['all']['fsc'][-1]
@@ -255,13 +249,13 @@ class PyTorchNetwork(object):
                 # Log validation loss
 
                 epoch_loss = validation_losses[-1]
-                _validation_loss_string = '\tValidation loss: {0:.6f}\t(Patience: {1})' \
-                                          ''.format(epoch_loss,
-                                                    training_strategy.improvement_patience - epochs_since_last_improvement)
+                validation_loss_string = '\tValidation loss: {0:.6f}\t(Patience: {1})' \
+                                         ''.format(epoch_loss,
+                                                   training_strategy.improvement_patience - epochs_since_last_improvement)
                 if epoch_loss < best_loss:
-                    print(col.print_colored(_validation_loss_string, col.OKGREEN), end="\n")
+                    colored_command_line.print(validation_loss_string, ColoredCommandLine.OKGREEN)
                 else:
-                    print(_validation_loss_string)
+                    print(validation_loss_string)
 
                 ##############################################################
                 # Early-stopping: Check for improvement
@@ -291,8 +285,8 @@ class PyTorchNetwork(object):
                     epochs_since_last_improvement = 0
                     refinement_stage = True
                     if refinement_steps < training_strategy.n_refinement_steps:
-                        self.update_learning_rate(optimizer,
-                                                  training_strategy.lr_refinement_multiplier)
+                        self.__update_learning_rate(optimizer,
+                                                    training_strategy.lr_refinement_multiplier)
                         refinement_steps += 1
 
                     else:
@@ -302,13 +296,12 @@ class PyTorchNetwork(object):
                         print('---------------------------------')
                         print('Final validation:\n')
 
-                        validation_epoch_output = self._validate_epoch(data['valid'], loss_fn, training_strategy)
+                        validation_epoch_output = self.__validate_epoch(data['valid'], loss_fn, training_strategy)
                         validation_results.append(validation_epoch_output)
 
-                        if self._tensorboard is not None:
-                            self.log_epoch_to_tensorboard(current_epoch_index,
-                                                          training_epoch_output,
-                                                          validation_epoch_output)
+                        self.__log_epoch_to_tensorboard(current_epoch_index,
+                                                        training_epoch_output,
+                                                        validation_epoch_output)
 
                         break
 
@@ -332,12 +325,15 @@ class PyTorchNetwork(object):
         else:
             return best_loss
 
-    def log_epoch_to_tensorboard(self, epoch_index,
-                                 training_epoch_outputs,
-                                 validation_epoch_outputs):
+    def __log_epoch_to_tensorboard(self, epoch_index,
+                                   training_epoch_outputs,
+                                   validation_epoch_outputs):
 
-        self._tensorboard.add_scalar('train/loss',
-                                     training_epoch_outputs['train_loss'], epoch_index)
+        if self.tensorboard is None:
+            return
+
+        self.tensorboard.add_scalar('train/loss',
+                                    training_epoch_outputs['train_loss'], epoch_index)
 
         for label in validation_epoch_outputs:
             if label == 'all':
@@ -347,22 +343,22 @@ class PyTorchNetwork(object):
             else:
                 label_name = str(label)
             for k, v in validation_epoch_outputs[label].items():
-                self._tensorboard.add_scalar('{0}/{1}'.format(label_name, k),
-                                             v, epoch_index)
+                self.tensorboard.add_scalar('{0}/{1}'.format(label_name, k),
+                                            v, epoch_index)
 
         print(validation_epoch_outputs['all'])
         for k, v in validation_epoch_outputs['all'].items():
             try:
-                self._tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
-                                             v, epoch_index)
+                self.tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
+                                            v, epoch_index)
             except AssertionError:
-                self._tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
-                                             v[-1], epoch_index)
+                self.tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
+                                            v[-1], epoch_index)
 
-    def _validate_epoch(self, data_pool, validation_batch_iterator,
-                        loss_function, training_strategy,
-                        estimate_dices=False,
-                        debug_mode=False):
+    def __validate_epoch(self, data_pool, validation_batch_iterator,
+                         loss_function, training_strategy,
+                         estimate_dices=False,
+                         debug_mode=False):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
@@ -450,16 +446,11 @@ class PyTorchNetwork(object):
                 'fsc': f_score,
                 'support': true_sum}
 
-    def update_learning_rate(self, optimizer, multiplier):
+    def __update_learning_rate(self, optimizer, multiplier):
         for param_group in optimizer.param_groups:
             learning_rate = param_group['lr']
             param_group['lr'] = learning_rate * multiplier
             print('\tUpdate learning rate to {0}'.format(param_group['lr']))
-
-    @staticmethod
-    def dump_validation_results(dump_root, origs, maps, masks, labels):
-        """Dumps the outputs of the detector into the given root."""
-        raise NotImplementedError()
 
     @staticmethod
     def __flatten_validation_results(validation_results):
@@ -513,11 +504,11 @@ class PyTorchNetwork(object):
 
         return agg_results_per_label, agg_overall
 
-    def _train_epoch(self, data_pool, training_batch_iterator, loss_function, optimizer,
-                     estimate_dices=False,
-                     debug_mode=False):
+    def __train_epoch(self, data_pool, training_batch_iterator, loss_function, optimizer,
+                      estimate_dices=False,
+                      debug_mode=False):
         """Run one epoch of training."""
-        colors = BColors()
+        colored_command_line = ColoredCommandLine()
 
         # Initialize data feeding from iterator
         iterator = training_batch_iterator(data_pool)
@@ -578,9 +569,9 @@ class PyTorchNetwork(object):
                                     numpy.mean(batch_train_losses))
             loss_printout_string = " (%d%%) %s time: %.2fs, ups: %.2f, loss: %.5f" % loss_printout_values
             if current_batch_index != n_batches - 1:
-                print(colors.print_colored(loss_printout_string, colors.WARNING), end="\r")
+                colored_command_line.print(loss_printout_string, colored_command_line.WARNING)
             else:
-                print(colors.print_colored(loss_printout_string, colors.OKBLUE), end="\n")
+                colored_command_line.print(loss_printout_string, colored_command_line.OKBLUE)
             sys.stdout.flush()
 
         # Aggregate monitors
