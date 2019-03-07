@@ -35,12 +35,12 @@ __author__ = "Jan Hajic jr."
 
 ##############################################################################
 
-def _connected_components2bboxes(labels):
+def connected_components2bboxes(labels):
     """Returns a dictionary of bounding boxes (upper left c., lower right c.)
     for each label.
 
     >>> labels = [[0, 0, 1, 1], [2, 0, 0, 1], [2, 0, 0, 0], [0, 0, 3, 3]]
-    >>> bboxes = _connected_components2bboxes(labels)
+    >>> bboxes = connected_components2bboxes(labels)
     >>> bboxes[0]
     [0, 0, 4, 4]
     >>> bboxes[1]
@@ -258,7 +258,7 @@ class DetectionWrapper:
             if label_map.shape[0] == 1:
                 label_map = label_map[0]
 
-        bboxes = _connected_components2bboxes(label_map)
+        bboxes = connected_components2bboxes(label_map)
         bboxes = {i: bbox for i, bbox in bboxes.items() if i != 0}
 
         # segmentation_map = self.run_segmentation(image)
@@ -332,7 +332,7 @@ class DetectionWrapper:
         """Deprecated: using self.detector.run() instead"""
         # Just get connected components: masks and bounding boxes.
         labels = skimage.measure.label(segmentation_mask, background=0)
-        bboxes = _connected_components2bboxes(labels)
+        bboxes = connected_components2bboxes(labels)
         bboxes = {i: bbox for i, bbox in bboxes.items() if i != 0}
         return labels, bboxes
 
@@ -449,13 +449,13 @@ class LasagneDetectionWrapper(DetectionWrapper):
     def run_detection(self, labels, original_image=None):
         # Just get connected components: masks and bounding boxes.
         # The labels are already returned by the Lasagne OMR class.
-        bboxes = _connected_components2bboxes(labels)
+        bboxes = connected_components2bboxes(labels)
         bboxes = {i: bbox for i, bbox in bboxes.items() if i != 0}
         return labels, bboxes
 
     def apply_postprocessing(self, cropobjects):
         """Scale the cropobjects back to 2x the size"""
-        def _postprocess_cropobject(c):
+        def postprocess_cropobject(c):
             # Scale bounding box
             c.x *= 2
             c.y *= 2
@@ -464,7 +464,7 @@ class LasagneDetectionWrapper(DetectionWrapper):
             mask = cv2.resize(c.mask, dsize=None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
             c.set_mask(mask)
             return c
-        return [_postprocess_cropobject(c) for c in cropobjects]
+        return [postprocess_cropobject(c) for c in cropobjects]
 
     def prepare_image(self, image, zoom=0.5):
         """Normalize to 0-1 and rescale to zoom (0.5 by default, which

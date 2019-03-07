@@ -125,16 +125,16 @@ class ObjectDetectionOMRAppClient(object):
         self.BUFFER_SIZE = 256
         self.tmp_dir = tmp_dir
 
-    def _format_request(self, request):
+    def __format_request(self, request):
         f_request = dict()
         for k in request:
             if k == 'image???':
-                f_request[k] = self._format_request_image(request[k])
+                f_request[k] = self.__format_request_image(request[k])
             else:
                 f_request[k] = request[k]
         return f_request
 
-    def _format_request_image(self, image):
+    def __format_request_image(self, image):
         return numpy.ndarray.dumps(image)
 
     def call(self, request):
@@ -151,7 +151,7 @@ class ObjectDetectionOMRAppClient(object):
                      ' host {0}, port {1}'.format(host, self.port))
 
         # Format request and dump to request file
-        f_request = self._format_request(request)
+        f_request = self.__format_request(request)
         _rstring = str(uuid.uuid4())
         temp_basename = 'fcnomr-detection_client.request.' + _rstring + '.pkl'
         request_fname = os.path.join(self.tmp_dir, temp_basename)
