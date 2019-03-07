@@ -169,7 +169,7 @@ class PyTorchNetwork(object):
         refinement_steps = 0
 
         # Tracking
-        best_training_loss, best_validation_loss = 1e7, 1e7
+        best_loss, best_training_loss, best_validation_loss = 1e7, 1e7, 1e7
         previous_fscore_training, previous_fscore_validation = 0.0, 0.0
 
         print("Starting training...")
@@ -177,8 +177,6 @@ class PyTorchNetwork(object):
 
             ##################################################################
             # Preparation
-
-            best_loss = best_training_loss
             if training_strategy.best_model_by_fscore:
                 best_loss = previous_fscore_training
 
@@ -296,7 +294,8 @@ class PyTorchNetwork(object):
                         print('---------------------------------')
                         print('Final validation:\n')
 
-                        validation_epoch_output = self.__validate_epoch(data['valid'], loss_fn, training_strategy)
+                        validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'], loss_fn,
+                                                                        training_strategy)
                         validation_results.append(validation_epoch_output)
 
                         self.__log_epoch_to_tensorboard(current_epoch_index,
@@ -355,10 +354,7 @@ class PyTorchNetwork(object):
                 self.tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
                                             v[-1], epoch_index)
 
-    def __validate_epoch(self, data_pool, validation_batch_iterator,
-                         loss_function, training_strategy,
-                         estimate_dices=False,
-                         debug_mode=False):
+    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, training_strategy):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
