@@ -72,8 +72,6 @@ def symbol_distances(cropobjects):
                 delta = cropobject_distance(c, d)
                 distances[c][d] = delta
                 distances[d][c] = delta
-    print('Distances for {0} cropobjects took {1:.3f} seconds'
-          ''.format(len(cropobjects), time.time() - _start_time))
     return distances
 
 
