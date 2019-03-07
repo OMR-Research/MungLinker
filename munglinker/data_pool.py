@@ -59,7 +59,7 @@ def symbol_distances(cropobjects):
 
     :returns: A dict of dicts, indexed by objid, then objid, then distance.
     """
-    _start_time = time.clock()
+    _start_time = time.time()
     distances = {}
     for c in cropobjects:
         distances[c] = {}
@@ -72,7 +72,7 @@ def symbol_distances(cropobjects):
                 distances[c][d] = delta
                 distances[d][c] = delta
     print('Distances for {0} cropobjects took {1:.3f} seconds'
-          ''.format(len(cropobjects), time.clock() - _start_time))
+          ''.format(len(cropobjects), time.time() - _start_time))
     return distances
 
 
@@ -673,7 +673,7 @@ def build_argument_parser():
 
 def main(args):
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     # Your code goes here
     mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
@@ -704,7 +704,7 @@ def main(args):
 
     print('Positive example ratio: {}'.format(n_positive / (n_batches * batch_size)))
 
-    _end_time = time.clock()
+    _end_time = time.time()
     logging.info('data_pools.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 

@@ -139,7 +139,7 @@ class ObjectDetectionOMRAppClient(object):
 
     def call(self, request):
         logging.info('ObjectDetectionOMRAppClient.run(): starting')
-        _start_time = time.clock()
+        _start_time = time.time()
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         host = '127.0.0.1'  # socket.gethostname()
@@ -221,7 +221,7 @@ class ObjectDetectionOMRAppClient(object):
 
         del s
 
-        _end_time = time.clock()
+        _end_time = time.time()
         logging.info('fcnomr.detection_client.ObjectDetectionOMRAppClient.run():'
                      ' done in {0:.3f} s'.format(_end_time - _start_time))
 
@@ -276,7 +276,7 @@ def build_argument_parser():
 
 def main(args):
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     logging.info('Initializing detection client.')
     tmp_dir = 'fcnomr-detection_client_{}.tmp'.format(uuid.uuid4())
@@ -321,7 +321,7 @@ def main(args):
     if os.path.isdir(tmp_dir):
         os.rmdir(tmp_dir)
 
-    _end_time = time.clock()
+    _end_time = time.time()
     logging.info('detection_client.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 

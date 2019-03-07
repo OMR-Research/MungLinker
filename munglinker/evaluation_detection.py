@@ -159,7 +159,7 @@ def load_input_images(images, labels, input_root, dtype='uint8'):
         are the
     """
     logging.info('Loading images...')
-    _image_load_start = time.clock()
+    _image_load_start = time.time()
     _imset = {}
     if images:
         _imset = set(images)
@@ -204,7 +204,7 @@ def load_input_images(images, labels, input_root, dtype='uint8'):
     logging.info('Images loaded. Total: {0}\n'
                  'Time taken: {1:.2f} s'
                  ''.format(len(labels) * len(imgs_per_fname),
-                           time.clock() - _image_load_start))
+                           time.time() - _image_load_start))
 
     return imgs_per_fname
 
@@ -608,7 +608,7 @@ def main(args):
     exp_name = build_experiment_name(args)
 
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     # Process input_labels with comma separation
     if ',' in args.input_labels[0]:
@@ -813,7 +813,7 @@ def main(args):
         print('\tF-score:\t{0:.3f}'.format(label_micro_avg_results[l]['fsc']))
 
     logging.info('Evaluation.py done in {0:.2f} s'
-                 ''.format(time.clock() - _start_time))
+                 ''.format(time.time() - _start_time))
 
 
 if __name__ == '__main__':

@@ -125,12 +125,12 @@ def build_argument_parser():
 
 def main(args):
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     # Your code goes here
     raise NotImplementedError()
 
-    _end_time = time.clock()
+    _end_time = time.time()
     logging.info('[XXXX] done in {0:.3f} s'.format(_end_time - _start_time))
 
 

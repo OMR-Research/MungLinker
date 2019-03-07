@@ -372,7 +372,7 @@ def build_argument_parser():
 
 def main(args):
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     logging.info('Initialize augmenter...')
     augmenter = ImageAugmentationProcessor(
@@ -430,7 +430,7 @@ def main(args):
         with open(args.export_rvals, 'w') as hdl:
             pickle.dump(rval_dicts, hdl, protocol=pickle.HIGHEST_PROTOCOL)
 
-    _end_time = time.clock()
+    _end_time = time.time()
     logging.info('augmentation.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 

@@ -135,7 +135,7 @@ def build_argument_parser():
 
 def main(args):
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     cropobjects = parse_cropobject_list(args.input_mung)
     graph = NotationGraph(cropobjects)
@@ -195,7 +195,7 @@ def main(args):
         with open(output_path, 'wb') as stream_out:
             mf.writeFile(stream_out)
 
-    _end_time = time.clock()
+    _end_time = time.time()
     logging.info('mung2midi.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 

@@ -193,7 +193,7 @@ def build_argument_parser():
 
 def main(args):
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     ##########################################################################
     # First we prepare the model
@@ -292,7 +292,7 @@ def main(args):
 
     # (No evaluation in this script.)
 
-    _end_time = time.clock()
+    _end_time = time.time()
     logging.info('run.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 

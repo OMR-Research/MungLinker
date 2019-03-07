@@ -131,7 +131,7 @@ def build_argument_parser():
 
 def main(args):
     logging.info('Starting main...')
-    _start_time = time.clock()
+    _start_time = time.time()
 
     # ------------------------------------------------------------------------
     # Initializing the model
@@ -222,7 +222,7 @@ def main(args):
     print('Saving model to: {0}'.format(args.export))
     torch.save(net.state_dict(), args.export)
 
-    _end_time = time.clock()
+    _end_time = time.time()
     logging.info('train.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 
