@@ -136,8 +136,6 @@ def main(args):
     # ------------------------------------------------------------------------
     # Initializing the model
 
-    use_cuda = torch.cuda.is_available()
-
     model_mod = select_model(args.model)
     build_model_fn = model_mod.get_build_model()
     net = build_model_fn()
@@ -181,11 +179,6 @@ def main(args):
 
     loss_fn_cls = BCELoss
     loss_fn_kwargs = dict()
-    # if args.focal_loss:
-    #     loss_fn_cls = FocalLossElementwise
-    #     loss_fn_kwargs = {'gamma': args.focal_loss_gamma}
-    #     # The focal loss needs to have sigmoid applied to it already!
-    #     model.net.apply_sigmoid = True
 
     exp_name = build_experiment_name(args)
     # We don't want our checkpoints to overwrite the best model.
