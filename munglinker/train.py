@@ -2,32 +2,18 @@
 """This is a script that..."""
 from __future__ import print_function, unicode_literals
 
-import torch, cv2
-from torch.autograd import Variable
-from torch.nn import BCEWithLogitsLoss, MSELoss, BCELoss, CrossEntropyLoss
-from torch.optim import Adam, RMSprop
-
 import argparse
-import collections
-import datetime
 import logging
 import os
-import pprint
-import random
-import sys
 import time
 
-import numpy
-from scipy.misc import imsave
+import torch
+from torch.nn import BCELoss
 
-# from munglinker.detector import ConnectedComponentDetector
-# from munglinker.evaluation import evaluate_detection, compute_eval_metrics_multichannel, dice
-# from munglinker.preprocessing import MUSCIMALabelsDataset
-# from munglinker.preprocessing import MUSCIMALabelIterator
-from munglinker.model import PyTorchTrainingStrategy, PyTorchNetwork
-# from munglinker.augmentation import ImageAugmentationProcessor
-from munglinker.utils import BColors, build_experiment_name, select_model
 from munglinker.data_pool import load_munglinker_data
+from munglinker.model import PyTorchNetwork
+from munglinker.training_strategies import PyTorchTrainingStrategy
+from munglinker.utils import build_experiment_name, select_model
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
