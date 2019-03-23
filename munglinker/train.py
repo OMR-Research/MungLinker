@@ -42,7 +42,7 @@ def build_argument_parser():
                              ' scores that are represented by the MuNGs. The'
                              ' image names must correspond to the MuNG file'
                              ' names, up to the file type suffix.')
-    parser.add_argument('-s', '--split_file', action='store', default="splits/minitest_split.yaml",
+    parser.add_argument('-s', '--split_file', action='store', default="splits/mob_split.yaml",
                         help='The split file that specifies which MUSCIMA++ items'
                              ' are training, validation, and test data. See the'
                              ' splits/ subdirectory for examples.')
@@ -116,7 +116,7 @@ def build_argument_parser():
 
 
 def main(args):
-    logging.info('Starting main...')
+    print('Starting main...')
     _start_time = time.time()
 
     # ------------------------------------------------------------------------
@@ -146,7 +146,7 @@ def main(args):
         config_file=args.config_file,
         test_only=False,
         no_test=True)
-    logging.info('Loaded pools; training data has {} entities'
+    print('Loaded pools; training data has {} entities'
                  ''.format(len(data['train'].train_entities)))
 
     # Iterators
@@ -158,7 +158,7 @@ def main(args):
                    'valid': valid_batch_iter,
                    'test': test_batch_iter}
 
-    logging.info('Data initialized.')
+    print('Data initialized.')
 
     # ------------------------------------------------------------------------
     # Initializing the training strategy
@@ -209,7 +209,7 @@ def main(args):
     torch.save(net.state_dict(), args.export)
 
     _end_time = time.time()
-    logging.info('train.py done in {0:.3f} s'.format(_end_time - _start_time))
+    print('train.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 
 if __name__ == '__main__':
