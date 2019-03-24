@@ -23,6 +23,7 @@ BATCH_SIZE = 4
 
 class BaseConvnet(nn.Module):
     """Basic ConvNet with binary classifier sigmoid (no bias) at the end."""
+
     def __init__(self,
                  n_input_channels=3,
                  leaky_relu=False):
@@ -89,7 +90,7 @@ class BaseConvnet(nn.Module):
         self.fcn = fcn
 
         # Output through softmax
-        self.output_activation = nn.Sigmoid() # nn.Softmax()
+        self.output_activation = nn.Sigmoid()  # nn.Softmax()
 
     def get_conv_output(self, input):
         conv_output = self.cnn(input)
