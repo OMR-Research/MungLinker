@@ -12,6 +12,7 @@ import numpy
 import numpy.random
 import torch
 from torch.autograd import Variable
+from tqdm import tqdm
 
 from munglinker.batch_iterators import threaded_generator_from_iterator
 from munglinker.evaluation import eval_clf_by_class_pair, print_class_pair_results
@@ -511,64 +512,40 @@ class PyTorchNetwork(object):
         generator = threaded_generator_from_iterator(iterator)
 
         n_batches = len(data_pool) // training_batch_iterator.batch_size
-        # print('n. of train entities: {}'.format(len(data_pool)))
-        # print('batch size: {}'.format(training_batch_iterator.batch_size))
 
         # Monitors
         batch_train_losses = []
 
-        # Time tracking
-        elapsed_time_for_last_five_batches = numpy.zeros(5, dtype=numpy.float32)
-        epoch_start_time = time.time()
-        last_time_checked = time.time()
+        with tqdm(total=n_batches + 1) as progress_bar:
+            # Training loop, one epoch
+            for current_batch_index, data_point in enumerate(generator):
+                # _data_point = next(generator)
+                # print("Batch {} / {}".format(batch_idx, n_batches))
+                np_inputs, np_targets = data_point  # next(generator)
 
-        # Training loop, one epoch
-        for current_batch_index, data_point in enumerate(generator):
-            # _data_point = next(generator)
-            # print("Batch {} / {}".format(batch_idx, n_batches))
-            np_inputs, np_targets = data_point  # next(generator)
+                # This assumes that the generator does not already
+                # return Torch Variables, which the model can however
+                # specify in its prepare() function(s).
+                inputs = Variable(torch.from_numpy(np_inputs).float())
+                targets = Variable(torch.from_numpy(np_targets).float())
+                if self.cuda:
+                    inputs = inputs.cuda()
+                    targets = targets.cuda()
 
-            # This assumes that the generator does not already
-            # return Torch Variables, which the model can however
-            # specify in its prepare() function(s).
-            inputs = Variable(torch.from_numpy(np_inputs).float())
-            targets = Variable(torch.from_numpy(np_targets).float())
-            if self.cuda:
-                inputs = inputs.cuda()
-                targets = targets.cuda()
+                # One training update:
+                optimizer.zero_grad()
+                predictions = self.net(inputs)
+                loss = loss_function(predictions, targets)
+                loss.backward()
+                optimizer.step()
 
-            # One training update:
-            optimizer.zero_grad()
-            predictions = self.net(inputs)
-            loss = loss_function(predictions, targets)
-            loss.backward()
-            optimizer.step()
+                # Monitors update
+                batch_train_losses.append(self.__torch2np(loss))
 
-            # Monitors update
-            batch_train_losses.append(self.__torch2np(loss))
-
-            # Train time tracking update
-            elapsed_time_for_current_epoch = time.time() - epoch_start_time
-            elapsed_time_for_current_batch = time.time() - last_time_checked
-            last_time_checked = time.time()
-
-            elapsed_time_for_last_five_batches[0:4] = elapsed_time_for_last_five_batches[1:5]
-            elapsed_time_for_last_five_batches[4] = elapsed_time_for_current_batch
-            updates_per_second = 1.0 / elapsed_time_for_last_five_batches.mean()
-
-            # Logging during training
-            percent_of_epoch_complete = 100 * (float(current_batch_index) / n_batches)
-            dec = int(percent_of_epoch_complete // 4)
-            progbar = "|" + dec * "#" + (25 - dec) * "-" + "|"
-            loss_printout_values = (percent_of_epoch_complete, progbar,
-                                    elapsed_time_for_current_epoch, updates_per_second,
-                                    numpy.mean(batch_train_losses))
-            loss_printout_string = " (%d%%) %s time: %.2fs, ups: %.2f, loss: %.5f" % loss_printout_values
-            if current_batch_index != n_batches - 1:
-                colored_command_line.print(loss_printout_string, colored_command_line.WARNING)
-            else:
-                colored_command_line.print(loss_printout_string, colored_command_line.OKBLUE)
-            sys.stdout.flush()
+                # Logging during training
+                progress_bar.set_description(
+                    "Training (current batch loss: {0:.2f})".format(numpy.mean(batch_train_losses)), refresh=False)
+                progress_bar.update()
 
         # Aggregate monitors
         avg_train_loss = numpy.mean(batch_train_losses)
