@@ -110,6 +110,7 @@ def build_argument_parser():
                         help='Turn on INFO messages.')
     parser.add_argument('--debug', action='store_true',
                         help='Turn on DEBUG messages.')
+    parser.add_argument('--train_on_bounding_boxes', action='store_true', default=False)
 
     return parser
 
