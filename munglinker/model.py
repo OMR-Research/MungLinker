@@ -357,8 +357,7 @@ class PyTorchNetwork(object):
         validation_results = collections.OrderedDict()
         losses = []
 
-        for current_batch_index in range(number_of_batches):
-
+        for current_batch_index in tqdm(range(number_of_batches), desc="Validating batches"):
             # Validation iterator might also output the MuNGOs,
             # for improved evaluation options.
             validation_batch = next(validation_generator)
@@ -498,12 +497,10 @@ class PyTorchNetwork(object):
         # Monitors
         batch_train_losses = []
 
+        # Training loop, one epoch
         with tqdm(total=n_batches + 1) as progress_bar:
-            # Training loop, one epoch
             for current_batch_index, data_point in enumerate(generator):
-                # _data_point = next(generator)
-                # print("Batch {} / {}".format(batch_idx, n_batches))
-                np_inputs, np_targets = data_point  # next(generator)
+                np_inputs, np_targets = data_point
 
                 # This assumes that the generator does not already
                 # return Torch Variables, which the model can however
