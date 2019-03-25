@@ -14,7 +14,7 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
-from munglinker.batch_iterators import threaded_generator_from_iterator
+from munglinker.batch_iterators import threaded_generator_from_iterator, generator_from_iterator
 from munglinker.evaluation import evaluate_classification_by_class_pairs, print_class_pair_results
 from munglinker.utils import ColoredCommandLine, targets2classes
 from tensorboardX import SummaryWriter
@@ -74,7 +74,7 @@ class PyTorchNetwork(object):
 
         # Initialize data feeding from iterator
         iterator = runtime_batch_iterator(data_pool)
-        generator = threaded_generator_from_iterator(iterator)
+        generator = generator_from_iterator(iterator)
 
         n_batches = len(data_pool) // runtime_batch_iterator.batch_size
         print('n. of runtime entities: {}; batches: {}'
@@ -243,13 +243,11 @@ class PyTorchNetwork(object):
                 # Log validation loss
 
                 epoch_loss = validation_losses[-1]
-                validation_loss_string = '\tValidation loss: {0:.6f}\t(Patience: {1})' \
-                                         ''.format(epoch_loss,
-                                                   training_strategy.improvement_patience - epochs_since_last_improvement)
                 if epoch_loss < best_loss:
-                    colored_command_line.print(validation_loss_string, ColoredCommandLine.OKGREEN)
+                    print('Validation loss improved from {0:.3f} to {1:.3f}'.format(best_loss, epoch_loss))
                 else:
-                    print(validation_loss_string)
+                    print('Validation loss did not improve over previous best {0:.3f}. Remaining patience: {1}'.format(
+                        best_loss, training_strategy.improvement_patience - epochs_since_last_improvement))
 
                 ##############################################################
                 # Early-stopping: Check for improvement
@@ -347,7 +345,7 @@ class PyTorchNetwork(object):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
-        validation_generator = threaded_generator_from_iterator(iterator)
+        validation_generator = generator_from_iterator(iterator)
 
         number_of_batches = len(data_pool) // validation_batch_iterator.batch_size
 
@@ -491,7 +489,7 @@ class PyTorchNetwork(object):
 
         # Initialize data feeding from iterator
         iterator = training_batch_iterator(data_pool)
-        generator = threaded_generator_from_iterator(iterator)
+        generator = generator_from_iterator(iterator)
 
         n_batches = len(data_pool) // training_batch_iterator.batch_size
 
