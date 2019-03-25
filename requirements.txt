@@ -3,3 +3,8 @@ numpy>=1.13.3
 muscima
 omrdatasettools
 tqdm
+
+# Install with 'conda install -c conda-forge osmnx'
+osmnx
+# Install with 'conda install rtree'
+rtree
