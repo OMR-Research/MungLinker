@@ -188,7 +188,7 @@ class PyTorchNetwork(object):
 
             ##################################################################
             # Iteration
-            for current_epoch_index in range(training_strategy.max_epochs):
+            for current_epoch_index in range(1, training_strategy.max_epochs + 1):
 
                 ##################################################################
                 # Train the epoch
@@ -198,7 +198,7 @@ class PyTorchNetwork(object):
                 training_losses.append(training_loss)
 
                 # Checkpointing
-                if (current_epoch_index + 1) % training_strategy.n_epochs_per_checkpoint == 0:
+                if current_epoch_index % training_strategy.n_epochs_per_checkpoint == 0:
                     if training_strategy.checkpoint_export_file:
                         if training_strategy.checkpoint_export_file is None:
                             os.makedirs("models", exist_ok=True)
@@ -218,7 +218,7 @@ class PyTorchNetwork(object):
 
                 #########################################################
                 # This only happens once per n_epochs_per_checkpoint
-                if (current_epoch_index + 1) % training_strategy.n_epochs_per_checkpoint == 0:
+                if current_epoch_index % training_strategy.n_epochs_per_checkpoint == 0:
                     validation_epoch_output = self.__validate_epoch(data['valid'],
                                                                     batch_iters['valid'],
                                                                     loss_fn, training_strategy)
@@ -274,7 +274,7 @@ class PyTorchNetwork(object):
                 if (refinement_stage and (epochs_since_last_improvement > training_strategy.refinement_patience)) \
                         or (epochs_since_last_improvement > training_strategy.improvement_patience):
                     print('Early-stopping: exceeded patience in epoch {0}'
-                          ''.format(current_epoch_index))
+                          ''.format(current_epoch_index + 1))
 
                     epochs_since_last_improvement = 0
                     refinement_stage = True
