@@ -12,10 +12,13 @@ import numpy
 import numpy.random
 import torch
 from torch.autograd import Variable
+from tqdm import tqdm
 
-from munglinker.batch_iterators import threaded_generator_from_iterator
-from munglinker.evaluation import eval_clf_by_class_pair, print_class_pair_results
+from munglinker.batch_iterators import threaded_generator_from_iterator, generator_from_iterator
+from munglinker.evaluation import evaluate_classification_by_class_pairs, print_class_pair_results
 from munglinker.utils import ColoredCommandLine, targets2classes
+from tensorboardX import SummaryWriter
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -71,7 +74,7 @@ class PyTorchNetwork(object):
 
         # Initialize data feeding from iterator
         iterator = runtime_batch_iterator(data_pool)
-        generator = threaded_generator_from_iterator(iterator)
+        generator = generator_from_iterator(iterator)
 
         n_batches = len(data_pool) // runtime_batch_iterator.batch_size
         print('n. of runtime entities: {}; batches: {}'
@@ -127,7 +130,6 @@ class PyTorchNetwork(object):
         :param tensorboard_log_path: TensorBoard writer will write to this
             directory.
         """
-        print("Training neural network...")
         colored_command_line = ColoredCommandLine()
 
         if dump_file is not None:
@@ -141,12 +143,8 @@ class PyTorchNetwork(object):
                 os.mkdir(out_path)
 
         if tensorboard_log_path is not None:
-            out_path = os.path.dirname(tensorboard_log_path)
-            if out_path and not os.path.isdir(out_path):
-                os.mkdir(out_path)
-            from tensorboardX import SummaryWriter
-            self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path,
-                                                          training_strategy.name),
+            os.makedirs(tensorboard_log_path, exist_ok=True)
+            self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path, training_strategy.name),
                                              comment=training_strategy.name)
 
         # Extra variable for learning rate, since it attenuates during training
@@ -190,20 +188,18 @@ class PyTorchNetwork(object):
 
             ##################################################################
             # Iteration
-            for current_epoch_index in range(training_strategy.max_epochs):
+            for current_epoch_index in range(1, training_strategy.max_epochs + 1):
 
                 ##################################################################
                 # Train the epoch
-                training_epoch_output = self.__train_epoch(data['train'],
-                                                           batch_iters['train'],
-                                                           loss_fn,
-                                                           optimizer)
+                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_fn, optimizer,
+                                                           current_epoch_index)
                 training_results.append(training_epoch_output)
                 training_loss = training_epoch_output['train_loss']
                 training_losses.append(training_loss)
 
                 # Checkpointing
-                if (current_epoch_index + 1) % training_strategy.n_epochs_per_checkpoint == 0:
+                if current_epoch_index % training_strategy.n_epochs_per_checkpoint == 0:
                     if training_strategy.checkpoint_export_file:
                         if training_strategy.checkpoint_export_file is None:
                             os.makedirs("models", exist_ok=True)
@@ -223,7 +219,7 @@ class PyTorchNetwork(object):
 
                 #########################################################
                 # This only happens once per n_epochs_per_checkpoint
-                if (current_epoch_index + 1) % training_strategy.n_epochs_per_checkpoint == 0:
+                if current_epoch_index % training_strategy.n_epochs_per_checkpoint == 0:
                     validation_epoch_output = self.__validate_epoch(data['valid'],
                                                                     batch_iters['valid'],
                                                                     loss_fn, training_strategy)
@@ -233,27 +229,26 @@ class PyTorchNetwork(object):
                                                     training_epoch_output,
                                                     validation_epoch_output)
 
-                    if 'fsc' in validation_epoch_output:
-                        validation_loss = -1 * validation_epoch_output['all']['fsc'][-1]
+                    if 'f-score' in validation_epoch_output:
+                        validation_loss = -1 * validation_epoch_output['all']['f-score'][-1]
                     else:
                         validation_loss = validation_epoch_output['all']['loss']
                     validation_losses.append(validation_loss)
 
                     print('Validation results: {}'.format(pprint.pformat(validation_epoch_output['all'])))
 
-                    print_class_pair_results(validation_epoch_output)
+                    if self.tensorboard is None:
+                        print_class_pair_results(validation_epoch_output)
 
                 ##################################
                 # Log validation loss
 
                 epoch_loss = validation_losses[-1]
-                validation_loss_string = '\tValidation loss: {0:.6f}\t(Patience: {1})' \
-                                         ''.format(epoch_loss,
-                                                   training_strategy.improvement_patience - epochs_since_last_improvement)
                 if epoch_loss < best_loss:
-                    colored_command_line.print(validation_loss_string, ColoredCommandLine.OKGREEN)
+                    print('Validation loss improved from {0:.3f} to {1:.3f}'.format(best_loss, epoch_loss))
                 else:
-                    print(validation_loss_string)
+                    print('Validation loss did not improve over previous best {0:.3f}. Remaining patience: {1}'.format(
+                        best_loss, training_strategy.improvement_patience - epochs_since_last_improvement))
 
                 ##############################################################
                 # Early-stopping: Check for improvement
@@ -278,7 +273,7 @@ class PyTorchNetwork(object):
                 if (refinement_stage and (epochs_since_last_improvement > training_strategy.refinement_patience)) \
                         or (epochs_since_last_improvement > training_strategy.improvement_patience):
                     print('Early-stopping: exceeded patience in epoch {0}'
-                          ''.format(current_epoch_index))
+                          ''.format(current_epoch_index + 1))
 
                     epochs_since_last_improvement = 0
                     refinement_stage = True
@@ -288,9 +283,7 @@ class PyTorchNetwork(object):
                         refinement_steps += 1
 
                     else:
-                        print('Early-stopping: exceeded refinement budget,'
-                              ' training ends.')
-
+                        print('Early-stopping: exceeded refinement budget, training ends.')
                         print('---------------------------------')
                         print('Final validation:\n')
 
@@ -338,27 +331,22 @@ class PyTorchNetwork(object):
             if label == 'all':
                 continue
             if len(label) == 2:
-                label_name = '{}__{}'.format(label[0], label[1])
-            else:
-                label_name = str(label)
-            for k, v in validation_epoch_outputs[label].items():
-                self.tensorboard.add_scalar('{0}/{1}'.format(label_name, k),
-                                            v, epoch_index)
+                for key, value in validation_epoch_outputs[label].items():
+                    label_name = 'pairwise_{0}/{1}__{2}'.format(key, label[0], label[1])
+                    self.tensorboard.add_scalar(label_name, value, epoch_index)
 
-        print(validation_epoch_outputs['all'])
-        for k, v in validation_epoch_outputs['all'].items():
-            try:
-                self.tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
-                                            v, epoch_index)
-            except AssertionError:
-                self.tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
-                                            v[-1], epoch_index)
+        for key, value in validation_epoch_outputs['all'].items():
+            if key in ['accuracy', 'loss']:  # Accuracy and Loss have only one value
+                self.tensorboard.add_scalar('validation/{0}'.format(key), value, epoch_index)
+            else:  # Precision, Recall and F-Score have two values, for two classes: Negative Samples / Positive Samples
+                value_for_negative_class, value_for_positive_class = value[0], value[1]
+                self.tensorboard.add_scalar('validation/{0}'.format(key), value_for_positive_class, epoch_index)
 
     def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, training_strategy):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
-        validation_generator = threaded_generator_from_iterator(iterator)
+        validation_generator = generator_from_iterator(iterator)
 
         number_of_batches = len(data_pool) // validation_batch_iterator.batch_size
 
@@ -386,7 +374,7 @@ class PyTorchNetwork(object):
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            predictions = self.net(inputs)
+            predictions = self.net(inputs).flatten()
             np_predictions = self.__torch2np(predictions)
             np_predicted_classes = targets2classes(np_predictions)
             np_target_classes = targets2classes(np_targets)
@@ -422,25 +410,19 @@ class PyTorchNetwork(object):
         validation_results['loss'] = aggregated_loss
 
         # Compute mistakes signatures per class pair
-        class_pair_results = eval_clf_by_class_pair(validation_mungos_from,
-                                                    validation_mungos_to,
-                                                    validation_target_classes,
-                                                    validation_predicted_classes)
+        class_pair_results = evaluate_classification_by_class_pairs(validation_mungos_from,
+                                                                    validation_mungos_to,
+                                                                    validation_target_classes,
+                                                                    validation_predicted_classes)
 
         class_pair_results['all'] = validation_results
         return class_pair_results
 
     @staticmethod
     def __evaluate_classification(predicted_classes, true_classes):
-        from sklearn.metrics import accuracy_score, precision_recall_fscore_support
         accuracy = accuracy_score(true_classes, predicted_classes)
-        precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes,
-                                                                               predicted_classes)
-        return {'acc': accuracy,
-                'prec': precision,
-                'rec': recall,
-                'fsc': f_score,
-                'support': true_sum}
+        precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes, predicted_classes)
+        return {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f-score': f_score, 'support': true_sum}
 
     def __update_learning_rate(self, optimizer, multiplier):
         for param_group in optimizer.param_groups:
@@ -478,7 +460,7 @@ class PyTorchNetwork(object):
                 for k, v in validation_results[img_name][label].items():
                     rs_per_label[label][k].append(v)
 
-        aggregated_metrics = set(['tp', 'fp', 'fn', 'dice', 'prec', 'rec', 'fsc'])
+        aggregated_metrics = {'tp', 'fp', 'fn', 'dice', 'precision', 'recall', 'f-score'}
 
         agg_results_per_label = {}
         for label in rs_per_label:
@@ -501,6 +483,7 @@ class PyTorchNetwork(object):
         return agg_results_per_label, agg_overall
 
     def __train_epoch(self, data_pool, training_batch_iterator, loss_function, optimizer,
+                      current_epoch_index: int,
                       estimate_dices=False,
                       debug_mode=False):
         """Run one epoch of training."""
@@ -508,74 +491,51 @@ class PyTorchNetwork(object):
 
         # Initialize data feeding from iterator
         iterator = training_batch_iterator(data_pool)
-        generator = threaded_generator_from_iterator(iterator)
+        generator = generator_from_iterator(iterator)
 
         n_batches = len(data_pool) // training_batch_iterator.batch_size
-        # print('n. of train entities: {}'.format(len(data_pool)))
-        # print('batch size: {}'.format(training_batch_iterator.batch_size))
 
         # Monitors
         batch_train_losses = []
 
-        # Time tracking
-        elapsed_time_for_last_five_batches = numpy.zeros(5, dtype=numpy.float32)
-        epoch_start_time = time.time()
-        last_time_checked = time.time()
+        with tqdm(total=n_batches + 1) as progress_bar:
+            # Training loop, one epoch
+            for current_batch_index, data_point in enumerate(generator):
+                # _data_point = next(generator)
+                # print("Batch {} / {}".format(batch_idx, n_batches))
+                np_inputs, np_targets = data_point  # next(generator)
 
-        # Training loop, one epoch
-        for current_batch_index, data_point in enumerate(generator):
-            # _data_point = next(generator)
-            # print("Batch {} / {}".format(batch_idx, n_batches))
-            np_inputs, np_targets = data_point  # next(generator)
+                # This assumes that the generator does not already
+                # return Torch Variables, which the model can however
+                # specify in its prepare() function(s).
+                inputs = Variable(torch.from_numpy(np_inputs).float())
+                targets = Variable(torch.from_numpy(np_targets).float())
+                if self.cuda:
+                    inputs = inputs.cuda()
+                    targets = targets.cuda()
 
-            # This assumes that the generator does not already
-            # return Torch Variables, which the model can however
-            # specify in its prepare() function(s).
-            inputs = Variable(torch.from_numpy(np_inputs).float())
-            targets = Variable(torch.from_numpy(np_targets).float())
-            if self.cuda:
-                inputs = inputs.cuda()
-                targets = targets.cuda()
+                # One training update:
+                optimizer.zero_grad()
+                predictions = self.net(inputs)
+                loss = loss_function(predictions, targets)
+                loss.backward()
+                optimizer.step()
 
-            # One training update:
-            optimizer.zero_grad()
-            predictions = self.net(inputs)
-            loss = loss_function(predictions, targets)
-            loss.backward()
-            optimizer.step()
+                # Monitors update
+                batch_train_losses.append(self.__torch2np(loss))
 
-            # Monitors update
-            batch_train_losses.append(self.__torch2np(loss))
+                # Aggregate monitors
+                average_training_loss = numpy.mean(batch_train_losses)
 
-            # Train time tracking update
-            elapsed_time_for_current_epoch = time.time() - epoch_start_time
-            elapsed_time_for_current_batch = time.time() - last_time_checked
-            last_time_checked = time.time()
-
-            elapsed_time_for_last_five_batches[0:4] = elapsed_time_for_last_five_batches[1:5]
-            elapsed_time_for_last_five_batches[4] = elapsed_time_for_current_batch
-            updates_per_second = 1.0 / elapsed_time_for_last_five_batches.mean()
-
-            # Logging during training
-            percent_of_epoch_complete = 100 * (float(current_batch_index) / n_batches)
-            dec = int(percent_of_epoch_complete // 4)
-            progbar = "|" + dec * "#" + (25 - dec) * "-" + "|"
-            loss_printout_values = (percent_of_epoch_complete, progbar,
-                                    elapsed_time_for_current_epoch, updates_per_second,
-                                    numpy.mean(batch_train_losses))
-            loss_printout_string = " (%d%%) %s time: %.2fs, ups: %.2f, loss: %.5f" % loss_printout_values
-            if current_batch_index != n_batches - 1:
-                colored_command_line.print(loss_printout_string, colored_command_line.WARNING)
-            else:
-                colored_command_line.print(loss_printout_string, colored_command_line.OKBLUE)
-            sys.stdout.flush()
-
-        # Aggregate monitors
-        avg_train_loss = numpy.mean(batch_train_losses)
+                # Logging during training
+                progress_bar.set_description(
+                    "Training epoch {0} (average loss: {1:.3f})".format(current_epoch_index, average_training_loss),
+                    refresh=False)
+                progress_bar.update()
 
         output = {
             'number': 0,
-            'train_loss': avg_train_loss,
+            'train_loss': average_training_loss,
             'train_dices': None,
         }
 

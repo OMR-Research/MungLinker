@@ -8,23 +8,20 @@ import logging
 import os
 import random
 import time
+from typing import List
 
 import numpy as np
 import yaml
-
-from mung.node import cropobject_distance, bbox_intersection
-from mung.grammar import DependencyGrammar
-from mung.graph import NotationGraph
-from mung.inference.constants import _CONST
-from mung.io import parse_cropobject_list, parse_cropobject_class_list
-
+from muscima.cropobject import cropobject_distance, bbox_intersection, CropObject
+from muscima.graph import NotationGraph
+from muscima.inference_engine_constants import _CONST
+from muscima.io import parse_cropobject_list
 from tqdm import tqdm
 
 from munglinker.utils import config2data_pool_dict, load_grammar
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
-
 
 ##############################################################################
 # This should all be in a config file.
@@ -51,42 +48,41 @@ IMAGE_ZOOM = 1.0
 # between the two sampled objects.
 MAX_PATCH_DISPLACEMENT = 0
 
-
 ##############################################################################
 # These functions are concerned with data point extraction for parser training.
 # Actually, it could be wrapped by a DataPool.
 
-def symbol_distances(cropobjects):
+distances_cache_per_file = {}
+
+
+def get_closest_objects(cropobjects: List[CropObject], threshold=100):
     """For each pair of cropobjects, compute the closest distance between their
     bounding boxes.
 
     :returns: A dict of dicts, indexed by objid, then objid, then distance.
     """
-    _start_time = time.time()
-    distances = {}
+    document = cropobjects[0].doc
+    if document in distances_cache_per_file:
+        return distances_cache_per_file[document]
+
+    close_objects = {}
     for c in cropobjects:
-        distances[c] = {}
+        close_objects[c] = []
+
+    for c in cropobjects:
         for d in cropobjects:
+            distance = cropobject_distance(c, d)
+            if distance < threshold:
+                close_objects[c].append(d)
+                close_objects[d].append(c)
 
-            if d not in distances:
-                distances[d] = {}
-            if d not in distances[c]:
-                delta = cropobject_distance(c, d)
-                distances[c][d] = delta
-                distances[d][c] = delta
-    return distances
+    # Remove duplicates from lists
+    for key, neighbors in close_objects.items():
+        unique_neighbors = list(dict.fromkeys(neighbors))
+        close_objects[key] = unique_neighbors
 
-
-def get_close_objects(dists, threshold=100):
-    """Returns a dict: for each cropobject a list of cropobjects
-    that are within the threshold."""
-    output = {}
-    for c in dists:
-        output[c] = []
-        for d in dists[c]:
-            if dists[c][d] < threshold:
-                output[c].append(d)
-    return output
+    distances_cache_per_file[document] = close_objects
+    return close_objects
 
 
 def negative_example_pairs(cropobjects,
@@ -107,8 +103,8 @@ def negative_example_pairs(cropobjects,
 
     :return: A list of tuples of (from, to) MuNG objects that are *not* linked.
     """
-    dists = symbol_distances(cropobjects)
-    close_neighbors = get_close_objects(dists, threshold=threshold)
+    close_neighbors = get_closest_objects(cropobjects, threshold)
+
     # Exclude linked ones
     negative_example_pairs_dict = {}
     for c in close_neighbors:
@@ -148,15 +144,14 @@ def get_object_pairs(cropobjects,
                      max_object_distance=THRESHOLD_NEGATIVE_DISTANCE,
                      max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
                      grammar=None):
-
-    negs = negative_example_pairs(cropobjects,
-                                  threshold=max_object_distance,
-                                  max_per_object=max_negative_samples,
-                                  grammar=grammar)
-    poss = positive_example_pairs(cropobjects)
+    negative_pairs = negative_example_pairs(cropobjects,
+                                            threshold=max_object_distance,
+                                            max_per_object=max_negative_samples,
+                                            grammar=grammar)
+    positive_pairs = positive_example_pairs(cropobjects)
     logging.info('Object pair extraction: positive: {}, negative: {}'
-                 ''.format(len(poss), len(negs)))
-    return negs + poss
+                 ''.format(len(positive_pairs), len(negative_pairs)))
+    return negative_pairs + positive_pairs
 
 
 ##############################################################################
@@ -175,6 +170,7 @@ class PairwiseMungoDataPool(object):
     It is entirely sufficient for training the baseline decision trees without
     complications, though.
     """
+
     def __init__(self, mungs, images,
                  max_edge_length=THRESHOLD_NEGATIVE_DISTANCE,
                  max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
@@ -330,7 +326,7 @@ class PairwiseMungoDataPool(object):
         self.train_entities = []
         self._mungo_pair_map = []
         n_entities = 0
-        for i_doc, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs for file")):
+        for i_doc, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs")):
             object_pairs = get_object_pairs(
                 mung.cropobjects,
                 max_object_distance=self.max_edge_length,
@@ -355,10 +351,10 @@ class PairwiseMungoDataPool(object):
 
     def prepare_train_patch(self, i_image, m_from, m_to):
         image = self.images[i_image]
-        patch = self.get_X_patch(image, m_from, m_to)
+        patch = self.get_x_patch(image, m_from, m_to)
         return patch
 
-    def get_X_patch(self, image, mungo_from, mungo_to):
+    def get_x_patch(self, image, mungo_from, mungo_to):
         """
         Assumes image is larger than patch.
 
@@ -398,9 +394,6 @@ class PairwiseMungoDataPool(object):
             print('bbox_of_patch_wrt_image: {}'.format(bbox_of_patch_wrt_image))
             raise MunglinkerDataError(e)
 
-        if output[0].max() > 1.0:
-            output[0] = output[0] / output[0].max()
-
         bbox_of_f_wrt_patch = bbox_intersection(mungo_from.bounding_box, bbox_patch)
         if bbox_of_f_wrt_patch is None:
             raise MunglinkerDataError('Cannot generate patch for given FROM object {}/{}'
@@ -414,8 +407,6 @@ class PairwiseMungoDataPool(object):
 
         f_patch_t, f_patch_l, f_patch_b, f_patch_r = bbox_of_patch_wrt_f
         output[1][f_patch_t:f_patch_b, f_patch_l:f_patch_r] = f_mask
-        if output[1].max() > 1.0:
-            output[1] = output[1] / output[1].max()
 
         bbox_of_t_wrt_patch = bbox_intersection(mungo_to.bounding_box, bbox_patch)
         if bbox_of_t_wrt_patch is None:
@@ -431,8 +422,6 @@ class PairwiseMungoDataPool(object):
         t_patch_t, t_patch_l, t_patch_b, t_patch_r = bbox_of_patch_wrt_t
         try:
             output[2][t_patch_t:t_patch_b, t_patch_l:t_patch_r] = t_mask
-            if output[2].max() > 1.0:
-                output[2] = output[2] / output[2].max()
         except ValueError:
             print('symbol_to: {}'.format(mungo_to))
             print('--------------- Absolute bboxes ----------')
@@ -547,7 +536,7 @@ def load_munglinker_data_lite(mung_root, images_root,
 
     def __load_image(filename):
         import PIL.Image
-        image = np.array(PIL.Image.open(filename).convert('L')).astype('uint8')
+        image = np.array(PIL.Image.open(filename).convert('1')).astype('uint8')
         return image
 
     mung_files = [os.path.join(mung_root, f) for f in sorted(os.listdir(mung_root))
@@ -567,8 +556,9 @@ def load_munglinker_data_lite(mung_root, images_root,
 
     mungs = []
     images = []
-    for mung_idx, image_idx in zip(mung_idxs, image_idxs):
-        logging.info('Loading mung/image pair {}'.format((mung_idx, image_idx)))
+    for mung_idx, image_idx in tqdm(zip(mung_idxs, image_idxs),
+                                    desc="Loading mung/image pairs from disk",
+                                    total=len(mung_idxs)):
         mung_file = mung_files[mung_idx]
         mung = __load_mung(mung_file)
         mungs.append(mung)
@@ -645,18 +635,19 @@ def load_munglinker_data(mung_root, images_root, split_file,
     else:
         # Default configuration from variables set at the start of this module
         data_pool_dict = {
-         'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
-         'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
-         'resample_train_entities': RESAMPLE_EACH_EPOCH,
-         'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
-         'zoom': IMAGE_ZOOM,
-         'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
-         'balance_samples': False,
+            'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
+            'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+            'resample_train_entities': RESAMPLE_EACH_EPOCH,
+            'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
+            'zoom': IMAGE_ZOOM,
+            'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
+            'balance_samples': False
         }
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False
 
     if not test_only:
+        print("Loading training data...")
         tr_mungs, tr_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['train'],
                                                         exclude_classes=exclude_classes,
@@ -664,6 +655,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
         tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images,
                                         **data_pool_dict)
 
+        print("Loading validation data...")
         va_mungs, va_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['valid'],
                                                         exclude_classes=exclude_classes,
@@ -675,6 +667,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
         va_pool = None
 
     if not no_test:
+        print("Loading test data...")
         te_mungs, te_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['test'],
                                                         exclude_classes=exclude_classes,
