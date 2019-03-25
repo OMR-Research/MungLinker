@@ -15,8 +15,10 @@ from torch.autograd import Variable
 from tqdm import tqdm
 
 from munglinker.batch_iterators import threaded_generator_from_iterator
-from munglinker.evaluation import eval_clf_by_class_pair, print_class_pair_results
+from munglinker.evaluation import evaluate_classification_by_class_pairs, print_class_pair_results
 from munglinker.utils import ColoredCommandLine, targets2classes
+from tensorboardX import SummaryWriter
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -128,7 +130,6 @@ class PyTorchNetwork(object):
         :param tensorboard_log_path: TensorBoard writer will write to this
             directory.
         """
-        print("Training neural network...")
         colored_command_line = ColoredCommandLine()
 
         if dump_file is not None:
@@ -142,12 +143,8 @@ class PyTorchNetwork(object):
                 os.mkdir(out_path)
 
         if tensorboard_log_path is not None:
-            out_path = os.path.dirname(tensorboard_log_path)
-            if out_path and not os.path.isdir(out_path):
-                os.mkdir(out_path)
-            from tensorboardX import SummaryWriter
-            self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path,
-                                                          training_strategy.name),
+            os.makedirs(tensorboard_log_path, exist_ok=True)
+            self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path, training_strategy.name),
                                              comment=training_strategy.name)
 
         # Extra variable for learning rate, since it attenuates during training
@@ -195,10 +192,7 @@ class PyTorchNetwork(object):
 
                 ##################################################################
                 # Train the epoch
-                training_epoch_output = self.__train_epoch(data['train'],
-                                                           batch_iters['train'],
-                                                           loss_fn,
-                                                           optimizer)
+                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_fn, optimizer)
                 training_results.append(training_epoch_output)
                 training_loss = training_epoch_output['train_loss']
                 training_losses.append(training_loss)
@@ -234,8 +228,8 @@ class PyTorchNetwork(object):
                                                     training_epoch_output,
                                                     validation_epoch_output)
 
-                    if 'fsc' in validation_epoch_output:
-                        validation_loss = -1 * validation_epoch_output['all']['fsc'][-1]
+                    if 'f-score' in validation_epoch_output:
+                        validation_loss = -1 * validation_epoch_output['all']['f-score'][-1]
                     else:
                         validation_loss = validation_epoch_output['all']['loss']
                     validation_losses.append(validation_loss)
@@ -289,9 +283,7 @@ class PyTorchNetwork(object):
                         refinement_steps += 1
 
                     else:
-                        print('Early-stopping: exceeded refinement budget,'
-                              ' training ends.')
-
+                        print('Early-stopping: exceeded refinement budget, training ends.')
                         print('---------------------------------')
                         print('Final validation:\n')
 
@@ -339,21 +331,17 @@ class PyTorchNetwork(object):
             if label == 'all':
                 continue
             if len(label) == 2:
-                label_name = '{}__{}'.format(label[0], label[1])
-            else:
-                label_name = str(label)
-            for k, v in validation_epoch_outputs[label].items():
-                self.tensorboard.add_scalar('{0}/{1}'.format(label_name, k),
-                                            v, epoch_index)
+                for key, value in validation_epoch_outputs[label].items():
+                    label_name = 'pairwise_{0}/{1}__{2}'.format(key, label[0], label[1])
+                    self.tensorboard.add_scalar(label_name, value, epoch_index)
 
         print(validation_epoch_outputs['all'])
-        for k, v in validation_epoch_outputs['all'].items():
-            try:
-                self.tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
-                                            v, epoch_index)
-            except AssertionError:
-                self.tensorboard.add_scalar('{0}'.format(k, v, epoch_index),
-                                            v[-1], epoch_index)
+        for key, value in validation_epoch_outputs['all'].items():
+            if key in ['accuracy', 'loss']:  # Accuracy has only 1 value
+                self.tensorboard.add_scalar('validation/{0}'.format(key), value, epoch_index)
+            else:  # Precision, Recall and F-Score have two values, for two classes: Negative Samples / Positive Samples
+                value_for_negative_class, value_for_positive_class = value[0], value[1]
+                self.tensorboard.add_scalar('validation/{0}'.format(key), value_for_positive_class, epoch_index)
 
     def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, training_strategy):
         """Run one epoch of validation. Returns a dict of validation results."""
@@ -387,7 +375,7 @@ class PyTorchNetwork(object):
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            predictions = self.net(inputs)
+            predictions = self.net(inputs).flatten()
             np_predictions = self.__torch2np(predictions)
             np_predicted_classes = targets2classes(np_predictions)
             np_target_classes = targets2classes(np_targets)
@@ -423,25 +411,19 @@ class PyTorchNetwork(object):
         validation_results['loss'] = aggregated_loss
 
         # Compute mistakes signatures per class pair
-        class_pair_results = eval_clf_by_class_pair(validation_mungos_from,
-                                                    validation_mungos_to,
-                                                    validation_target_classes,
-                                                    validation_predicted_classes)
+        class_pair_results = evaluate_classification_by_class_pairs(validation_mungos_from,
+                                                                    validation_mungos_to,
+                                                                    validation_target_classes,
+                                                                    validation_predicted_classes)
 
         class_pair_results['all'] = validation_results
         return class_pair_results
 
     @staticmethod
     def __evaluate_classification(predicted_classes, true_classes):
-        from sklearn.metrics import accuracy_score, precision_recall_fscore_support
         accuracy = accuracy_score(true_classes, predicted_classes)
-        precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes,
-                                                                               predicted_classes)
-        return {'acc': accuracy,
-                'prec': precision,
-                'rec': recall,
-                'fsc': f_score,
-                'support': true_sum}
+        precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes, predicted_classes)
+        return {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f-score': f_score, 'support': true_sum}
 
     def __update_learning_rate(self, optimizer, multiplier):
         for param_group in optimizer.param_groups:
@@ -479,7 +461,7 @@ class PyTorchNetwork(object):
                 for k, v in validation_results[img_name][label].items():
                     rs_per_label[label][k].append(v)
 
-        aggregated_metrics = set(['tp', 'fp', 'fn', 'dice', 'prec', 'rec', 'fsc'])
+        aggregated_metrics = set(['tp', 'fp', 'fn', 'dice', 'precision', 'recall', 'f-score'])
 
         agg_results_per_label = {}
         for label in rs_per_label:
@@ -542,17 +524,17 @@ class PyTorchNetwork(object):
                 # Monitors update
                 batch_train_losses.append(self.__torch2np(loss))
 
+                # Aggregate monitors
+                average_training_loss = numpy.mean(batch_train_losses)
+
                 # Logging during training
                 progress_bar.set_description(
-                    "Training (current batch loss: {0:.2f})".format(numpy.mean(batch_train_losses)), refresh=False)
+                    "Training (average loss: {0:.2f})".format(average_training_loss), refresh=False)
                 progress_bar.update()
-
-        # Aggregate monitors
-        avg_train_loss = numpy.mean(batch_train_losses)
 
         output = {
             'number': 0,
-            'train_loss': avg_train_loss,
+            'train_loss': average_training_loss,
             'train_dices': None,
         }
 

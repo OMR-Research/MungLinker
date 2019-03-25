@@ -266,8 +266,8 @@ def print_report(lr):
               ''.format(r['dice']))
         print('\tTP: {0}, FP: {1}, FN: {2}'
               ''.format(r['tp'], r['fp'], r['fn']))
-        print('\tRec: {0:.3f}, Prec: {1:.3f}, F-sc: {2:.3f}'
-              ''.format(r['rec'], r['prec'], r['fsc']))
+        print('\tRecall: {0:.3f}, Precision: {1:.3f}, F-Score: {2:.3f}'
+              ''.format(r['recall'], r['precision'], r['f-score']))
 
 
 ##############################################################################
@@ -288,10 +288,10 @@ def compute_eval_metrics(gt_label_img, pred_label_img, gt_mask, prob_mask):
 
     tp, fp, fn = len(tp_idx), len(fp_idx), len(fn_idx)
     if tp == 0:
-        rec, prec, fsc = 0.0, 0.0, 0.0
+        recall, precision, f_score = 0.0, 0.0, 0.0
     else:
-        rec, prec = tp / (tp + fn), tp / (tp + fp)
-        fsc = (2 * rec * prec) / (rec + prec)
+        recall, precision = tp / (tp + fn), tp / (tp + fp)
+        f_score = (2 * recall * precision) / (recall + precision)
 
     dice_coeff = dice(prob_mask, gt_mask)
 
@@ -300,7 +300,7 @@ def compute_eval_metrics(gt_label_img, pred_label_img, gt_mask, prob_mask):
         'gt_centroids': gt_centroids,
         'tp': tp, 'fp': fp, 'fn': fn,
         'tp_idx': tp_idx, 'fp_idx': fp_idx, 'fn_idx': fn_idx,
-        'rec': rec, 'prec': prec, 'fsc': fsc,
+        'recall': recall, 'precision': precision, 'f-score': f_score,
         'dice': dice_coeff,
     }
     return r
@@ -415,7 +415,7 @@ def evaluate_detection(data_loader, detector, show_results=False,
         results[i] = label_results
 
     # Aggregate results
-    macro_aggregated_metrics = ['tp', 'fp', 'fn', 'dice', 'prec', 'rec', 'fsc']
+    macro_aggregated_metrics = ['tp', 'fp', 'fn', 'dice', 'precision', 'recall', 'f-score']
     micro_aggregated_metrics = ['tp', 'fp', 'fn']
 
     agg_results = collections.defaultdict(list)   # across images AND labels, macro-averages
@@ -455,12 +455,12 @@ def evaluate_detection(data_loader, detector, show_results=False,
     for label in label_micro_avg_results:
         _lmar = label_micro_avg_results[label]
         tp, fp, fn = _lmar['tp'], _lmar['fp'], _lmar['fn']
-        rec = tp / (tp + fn)
-        prec = tp / (tp + fp)
-        fsc = (2 * rec * prec) / (rec + prec)
-        label_micro_avg_results[label]['rec'] = rec
-        label_micro_avg_results[label]['prec'] = prec
-        label_micro_avg_results[label]['fsc'] = fsc
+        recall = tp / (tp + fn)
+        precision = tp / (tp + fp)
+        f_score = (2 * recall * precision) / (recall + precision)
+        label_micro_avg_results[label]['recall'] = recall
+        label_micro_avg_results[label]['precision'] = precision
+        label_micro_avg_results[label]['f-score'] = f_score
 
     label_macro_avg_results = {label: {k: numpy.mean(v)
                                        for k, v in label_macro_agg_results[label].items()}
@@ -786,31 +786,31 @@ def main(args):
     # Average the evaluation results
     aggregate_results = {}
     for l in output_labels:
-        recs = [r[l]['rec'] for r in detailed_results.values()]
-        precs = [r[l]['prec'] for r in detailed_results.values()]
-        fscs = [r[l]['fsc'] for r in detailed_results.values()]
+        recalls = [r[l]['recall'] for r in detailed_results.values()]
+        precisions = [r[l]['precision'] for r in detailed_results.values()]
+        f_scores = [r[l]['f-score'] for r in detailed_results.values()]
         dices = [r[l]['dice'] for r in detailed_results.values()]
-        aggregate_results[l] = {'rec': numpy.average(recs),
-                                'prec': numpy.average(precs),
-                                'fsc': numpy.average(fscs),
+        aggregate_results[l] = {'recall': numpy.average(recalls),
+                                'precision': numpy.average(precisions),
+                                'f-score': numpy.average(f_scores),
                                 'dice': numpy.average(dices)}
 
     print('==========================================================')
     print('Macro-averaged results:')
     for l in aggregate_results:
         print('\nLabel: {0}'.format(l))
-        print('\tRecall:\t{0:.3f}'.format(aggregate_results[l]['rec']))
-        print('\tPrecision:\t{0:.3f}'.format(aggregate_results[l]['prec']))
-        print('\tF-score:\t{0:.3f}'.format(aggregate_results[l]['fsc']))
+        print('\tRecall:\t{0:.3f}'.format(aggregate_results[l]['recall']))
+        print('\tPrecision:\t{0:.3f}'.format(aggregate_results[l]['precision']))
+        print('\tF-score:\t{0:.3f}'.format(aggregate_results[l]['f-score']))
         print('\tDice:\t{0:.3f}'.format(aggregate_results[l]['dice']))
 
     print('==========================================================')
     print('Micro-averaged results:')
     for l in label_micro_avg_results:
         print('\nLabel: {0}'.format(l))
-        print('\tRecall:\t{0:.3f}'.format(label_micro_avg_results[l]['rec']))
-        print('\tPrecision:\t{0:.3f}'.format(label_micro_avg_results[l]['prec']))
-        print('\tF-score:\t{0:.3f}'.format(label_micro_avg_results[l]['fsc']))
+        print('\tRecall:\t{0:.3f}'.format(label_micro_avg_results[l]['recall']))
+        print('\tPrecision:\t{0:.3f}'.format(label_micro_avg_results[l]['precision']))
+        print('\tF-score:\t{0:.3f}'.format(label_micro_avg_results[l]['f-score']))
 
     logging.info('Evaluation.py done in {0:.2f} s'
                  ''.format(time.time() - _start_time))

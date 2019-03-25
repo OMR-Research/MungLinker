@@ -115,7 +115,6 @@ def build_argument_parser():
 
 
 def main(args):
-    print('Starting main...')
     _start_time = time.time()
 
     # ------------------------------------------------------------------------
@@ -195,8 +194,6 @@ def main(args):
 
     # ------------------------------------------------------------------------
     # Run training.
-
-    print('Fitting model...')
     model.fit(data=data,
               batch_iters=batch_iters,
               training_strategy=strategy,

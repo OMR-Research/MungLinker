@@ -22,16 +22,16 @@ def evaluate_clf(pred_classes, true_classes):
     precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes,
                                                                            pred_classes,
                                                                            average='binary')
-    return {'acc': accuracy,
-            'prec': precision,
-            'rec': recall,
-            'fsc': f_score,
+    return {'accuracy': accuracy,
+            'precision': precision,
+            'recall': recall,
+            'f-score': f_score,
             'support': true_sum}
 
 
-def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
-                           flatten_results=False, retain_negative=False,
-                           min_support=10):
+def evaluate_classification_by_class_pairs(mungos_from, mungos_to, true_classes, pred_classes,
+                                           flatten_results=False, retain_negative=False,
+                                           min_support=10):
     """Produce a dict of evaluation results for individual class pairs
     in the data. (Note that grammar restrictions are already built into
     that, if a grammar is used.) By default, retains only the recall, precision,
@@ -72,9 +72,9 @@ def eval_clf_by_class_pair(mungos_from, mungos_to, true_classes, pred_classes,
             continue
         # print('Cpair {}: results\n{}'.format(cpair, cp_results_all))
         cp_results = {
-            'rec': cp_results_all['rec'],
-            'prec': cp_results_all['prec'],
-            'fsc': cp_results_all['fsc'],
+            'recall': cp_results_all['recall'],
+            'precision': cp_results_all['precision'],
+            'f-score': cp_results_all['f-score'],
             'support': cp_results_all['support']}
         if flatten_results:
             cpair_name = '__'.join(cpair)
@@ -102,7 +102,7 @@ def print_class_pair_results(class_pair_results, min_support=20):
             cpair_name = cpair
         else:
             cpair_name = '__'.join(cpair)
-        for k in ['fsc', 'rec', 'prec', 'support', 'loss']:
+        for k in ['f-score', 'recall', 'precision', 'support', 'loss']:
             if k in values:
                 print('{}__{}'.format(cpair_name, k), values[k])
         print('---------')
