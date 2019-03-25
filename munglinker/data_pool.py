@@ -61,8 +61,9 @@ def get_closest_objects(cropobjects: List[CropObject], threshold=100):
 
     :returns: A dict of dicts, indexed by objid, then objid, then distance.
     """
-    if cropobjects[0].doc in distances_cache_per_file:
-        return distances_cache_per_file[cropobjects[0].doc]
+    document = cropobjects[0].doc
+    if document in distances_cache_per_file:
+        return distances_cache_per_file[document]
 
     close_objects = {}
     for c in cropobjects:
@@ -80,7 +81,7 @@ def get_closest_objects(cropobjects: List[CropObject], threshold=100):
         unique_neighbors = list(dict.fromkeys(neighbors))
         close_objects[key] = unique_neighbors
 
-    distances_cache_per_file[cropobjects[0].doc] = close_objects
+    distances_cache_per_file[document] = close_objects
     return close_objects
 
 
