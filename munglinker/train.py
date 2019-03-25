@@ -97,8 +97,7 @@ def build_argument_parser():
     parser.add_argument('--exp_tag', action='store',
                         help='Give the experiment some additional name.')
 
-    parser.add_argument('--tb_log_dir', action='store',
-                        help='Tensoroboard logs directory.')
+    parser.add_argument('--tb_log_dir', default="logging", help='Tensoroboard logs directory.')
     parser.add_argument('--show_architecture', action='store_true',
                         help='Print network architecture before training starts.')
 
@@ -147,7 +146,7 @@ def main(args):
         test_only=False,
         no_test=True)
     print('Loaded pools; training data has {} entities'
-                 ''.format(len(data['train'].train_entities)))
+          ''.format(len(data['train'].train_entities)))
 
     # Iterators
     train_batch_iter = model_mod.train_batch_iterator(args.batch_size)
