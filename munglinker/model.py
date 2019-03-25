@@ -336,9 +336,8 @@ class PyTorchNetwork(object):
                     label_name = 'pairwise_{0}/{1}__{2}'.format(key, label[0], label[1])
                     self.tensorboard.add_scalar(label_name, value, epoch_index)
 
-        print(validation_epoch_outputs['all'])
         for key, value in validation_epoch_outputs['all'].items():
-            if key in ['accuracy', 'loss']:  # Accuracy has only 1 value
+            if key in ['accuracy', 'loss']:  # Accuracy and Loss have only one value
                 self.tensorboard.add_scalar('validation/{0}'.format(key), value, epoch_index)
             else:  # Precision, Recall and F-Score have two values, for two classes: Negative Samples / Positive Samples
                 value_for_negative_class, value_for_positive_class = value[0], value[1]
