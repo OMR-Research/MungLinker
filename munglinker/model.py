@@ -192,7 +192,8 @@ class PyTorchNetwork(object):
 
                 ##################################################################
                 # Train the epoch
-                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_fn, optimizer)
+                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_fn, optimizer,
+                                                           current_epoch_index)
                 training_results.append(training_epoch_output)
                 training_loss = training_epoch_output['train_loss']
                 training_losses.append(training_loss)
@@ -459,7 +460,7 @@ class PyTorchNetwork(object):
                 for k, v in validation_results[img_name][label].items():
                     rs_per_label[label][k].append(v)
 
-        aggregated_metrics = set(['tp', 'fp', 'fn', 'dice', 'precision', 'recall', 'f-score'])
+        aggregated_metrics = {'tp', 'fp', 'fn', 'dice', 'precision', 'recall', 'f-score'}
 
         agg_results_per_label = {}
         for label in rs_per_label:
@@ -482,6 +483,7 @@ class PyTorchNetwork(object):
         return agg_results_per_label, agg_overall
 
     def __train_epoch(self, data_pool, training_batch_iterator, loss_function, optimizer,
+                      current_epoch_index: int,
                       estimate_dices=False,
                       debug_mode=False):
         """Run one epoch of training."""
@@ -527,7 +529,8 @@ class PyTorchNetwork(object):
 
                 # Logging during training
                 progress_bar.set_description(
-                    "Training (average loss: {0:.2f})".format(average_training_loss), refresh=False)
+                    "Training epoch {0} (average loss: {1:.3f})".format(current_epoch_index, average_training_loss),
+                    refresh=False)
                 progress_bar.update()
 
         output = {
