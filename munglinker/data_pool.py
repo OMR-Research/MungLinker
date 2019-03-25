@@ -350,10 +350,10 @@ class PairwiseMungoDataPool(object):
 
     def prepare_train_patch(self, i_image, m_from, m_to):
         image = self.images[i_image]
-        patch = self.get_X_patch(image, m_from, m_to)
+        patch = self.get_x_patch(image, m_from, m_to)
         return patch
 
-    def get_X_patch(self, image, mungo_from, mungo_to):
+    def get_x_patch(self, image, mungo_from, mungo_to):
         """
         Assumes image is larger than patch.
 
@@ -393,9 +393,6 @@ class PairwiseMungoDataPool(object):
             print('bbox_of_patch_wrt_image: {}'.format(bbox_of_patch_wrt_image))
             raise MunglinkerDataError(e)
 
-        if output[0].max() > 1.0:
-            output[0] = output[0] / output[0].max()
-
         bbox_of_f_wrt_patch = bbox_intersection(mungo_from.bounding_box, bbox_patch)
         if bbox_of_f_wrt_patch is None:
             raise MunglinkerDataError('Cannot generate patch for given FROM object {}/{}'
@@ -409,8 +406,6 @@ class PairwiseMungoDataPool(object):
 
         f_patch_t, f_patch_l, f_patch_b, f_patch_r = bbox_of_patch_wrt_f
         output[1][f_patch_t:f_patch_b, f_patch_l:f_patch_r] = f_mask
-        if output[1].max() > 1.0:
-            output[1] = output[1] / output[1].max()
 
         bbox_of_t_wrt_patch = bbox_intersection(mungo_to.bounding_box, bbox_patch)
         if bbox_of_t_wrt_patch is None:
@@ -426,8 +421,6 @@ class PairwiseMungoDataPool(object):
         t_patch_t, t_patch_l, t_patch_b, t_patch_r = bbox_of_patch_wrt_t
         try:
             output[2][t_patch_t:t_patch_b, t_patch_l:t_patch_r] = t_mask
-            if output[2].max() > 1.0:
-                output[2] = output[2] / output[2].max()
         except ValueError:
             print('symbol_to: {}'.format(mungo_to))
             print('--------------- Absolute bboxes ----------')
@@ -535,7 +528,7 @@ def load_munglinker_data_lite(mung_root, images_root,
 
     def __load_image(filename):
         import PIL.Image
-        image = np.array(PIL.Image.open(filename).convert('L')).astype('uint8')
+        image = np.array(PIL.Image.open(filename).convert('1')).astype('uint8')
         return image
 
     mung_files = [os.path.join(mung_root, f) for f in sorted(os.listdir(mung_root))
