@@ -12,17 +12,16 @@ import time
 import numpy as np
 import yaml
 from muscima.cropobject import cropobject_distance, bbox_intersection
-from muscima.grammar import DependencyGrammar
 from muscima.graph import NotationGraph
 from muscima.inference_engine_constants import _CONST
-from muscima.io import parse_cropobject_list, parse_cropobject_class_list
+from muscima.io import parse_cropobject_list
 from tqdm import tqdm
 
+from munglinker.rtree_demo import get_close_objects2
 from munglinker.utils import config2data_pool_dict, load_grammar
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
-
 
 ##############################################################################
 # This should all be in a config file.
@@ -105,8 +104,12 @@ def negative_example_pairs(cropobjects,
 
     :return: A list of tuples of (from, to) MuNG objects that are *not* linked.
     """
+    # Variant 1:
     dists = symbol_distances(cropobjects)
     close_neighbors = get_close_objects(dists, threshold=threshold)
+    # Variant 2:
+    # close_neighbors = get_close_objects2(cropobjects, threshold=threshold)
+
     # Exclude linked ones
     negative_example_pairs_dict = {}
     for c in close_neighbors:
@@ -146,15 +149,14 @@ def get_object_pairs(cropobjects,
                      max_object_distance=THRESHOLD_NEGATIVE_DISTANCE,
                      max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
                      grammar=None):
-
-    negs = negative_example_pairs(cropobjects,
-                                  threshold=max_object_distance,
-                                  max_per_object=max_negative_samples,
-                                  grammar=grammar)
-    poss = positive_example_pairs(cropobjects)
+    negative_pairs = negative_example_pairs(cropobjects,
+                                             threshold=max_object_distance,
+                                             max_per_object=max_negative_samples,
+                                             grammar=grammar)
+    positive_pairs = positive_example_pairs(cropobjects)
     logging.info('Object pair extraction: positive: {}, negative: {}'
-                 ''.format(len(poss), len(negs)))
-    return negs + poss
+                 ''.format(len(positive_pairs), len(negative_pairs)))
+    return negative_pairs + positive_pairs
 
 
 ##############################################################################
@@ -173,6 +175,7 @@ class PairwiseMungoDataPool(object):
     It is entirely sufficient for training the baseline decision trees without
     complications, though.
     """
+
     def __init__(self, mungs, images,
                  max_edge_length=THRESHOLD_NEGATIVE_DISTANCE,
                  max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
@@ -328,7 +331,7 @@ class PairwiseMungoDataPool(object):
         self.train_entities = []
         self._mungo_pair_map = []
         n_entities = 0
-        for i_doc, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs for file")):
+        for i_doc, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs")):
             object_pairs = get_object_pairs(
                 mung.cropobjects,
                 max_object_distance=self.max_edge_length,
@@ -558,8 +561,9 @@ def load_munglinker_data_lite(mung_root, images_root,
 
     mungs = []
     images = []
-    for mung_idx, image_idx in zip(mung_idxs, image_idxs):
-        logging.info('Loading mung/image pair {}'.format((mung_idx, image_idx)))
+    for mung_idx, image_idx in tqdm(zip(mung_idxs, image_idxs),
+                                    desc="Loading mung/image pairs from disk",
+                                    total=len(mung_idxs)):
         mung_file = mung_files[mung_idx]
         mung = __load_mung(mung_file)
         mungs.append(mung)
@@ -616,13 +620,13 @@ def load_munglinker_data(mung_root, images_root, split_file,
                 config['VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT']
     else:
         data_pool_dict = {
-         'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
-         'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
-         'resample_train_entities': RESAMPLE_EACH_EPOCH,
-         'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
-         'zoom': IMAGE_ZOOM,
-         'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
-         'balance_samples': False
+            'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
+            'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+            'resample_train_entities': RESAMPLE_EACH_EPOCH,
+            'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
+            'zoom': IMAGE_ZOOM,
+            'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
+            'balance_samples': False
         }
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False
@@ -648,7 +652,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
                                                         include_names=split['test'],
                                                         exclude_classes=exclude_classes)
         te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images
-                                        **data_pool_dict)
+                                                               ** data_pool_dict)
     else:
         te_pool = None
 

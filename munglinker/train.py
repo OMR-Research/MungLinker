@@ -136,7 +136,6 @@ def main(args):
 
     # ------------------------------------------------------------------------
     # Initializing the data
-
     data = load_munglinker_data(
         mung_root=args.mung_root,
         images_root=args.image_root,
