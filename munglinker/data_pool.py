@@ -11,13 +11,12 @@ import time
 
 import numpy as np
 import yaml
-from muscima.cropobject import cropobject_distance, bbox_intersection
+from muscima.cropobject import cropobject_distance, bbox_intersection, CropObject
 from muscima.graph import NotationGraph
 from muscima.inference_engine_constants import _CONST
 from muscima.io import parse_cropobject_list
 from tqdm import tqdm
 
-from munglinker.rtree_demo import get_close_objects2
 from munglinker.utils import config2data_pool_dict, load_grammar
 
 __version__ = "0.0.1"
@@ -48,10 +47,32 @@ IMAGE_ZOOM = 1.0
 # between the two sampled objects.
 MAX_PATCH_DISPLACEMENT = 0
 
-
 ##############################################################################
 # These functions are concerned with data point extraction for parser training.
 # Actually, it could be wrapped by a DataPool.
+
+distances_cache_per_file = {}
+
+
+def get_distance_between_cropobjects_with_caching(object1: CropObject, object2: CropObject):
+    first_uid = object1.uid
+    second_uid = object2.uid
+
+    if object1.doc not in distances_cache_per_file:
+        distances_cache_per_file[object1.doc] = {}
+
+    distances_cache = distances_cache_per_file[object1.doc]
+
+    if first_uid in distances_cache:
+        if second_uid in distances_cache[first_uid]:
+            return distances_cache[first_uid][second_uid]
+    else:
+        distances_cache[first_uid] = {}
+
+    distance = cropobject_distance(object1, object2)
+    distances_cache[first_uid][second_uid] = distance
+    return distance
+
 
 def symbol_distances(cropobjects):
     """For each pair of cropobjects, compute the closest distance between their
@@ -68,7 +89,7 @@ def symbol_distances(cropobjects):
             if d not in distances:
                 distances[d] = {}
             if d not in distances[c]:
-                delta = cropobject_distance(c, d)
+                delta = get_distance_between_cropobjects_with_caching(c, d)
                 distances[c][d] = delta
                 distances[d][c] = delta
     return distances
@@ -150,9 +171,9 @@ def get_object_pairs(cropobjects,
                      max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
                      grammar=None):
     negative_pairs = negative_example_pairs(cropobjects,
-                                             threshold=max_object_distance,
-                                             max_per_object=max_negative_samples,
-                                             grammar=grammar)
+                                            threshold=max_object_distance,
+                                            max_per_object=max_negative_samples,
+                                            grammar=grammar)
     positive_pairs = positive_example_pairs(cropobjects)
     logging.info('Object pair extraction: positive: {}, negative: {}'
                  ''.format(len(positive_pairs), len(negative_pairs)))
@@ -632,27 +653,27 @@ def load_munglinker_data(mung_root, images_root, split_file,
         validation_data_pool_dict['resample_train_entities'] = False
 
     if not test_only:
+        print("Loading training data...")
         tr_mungs, tr_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['train'],
                                                         exclude_classes=exclude_classes)
-        tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images,
-                                        **data_pool_dict)
+        tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images, **data_pool_dict)
 
+        print("Loading validation data...")
         va_mungs, va_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['valid'],
                                                         exclude_classes=exclude_classes)
-        va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images,
-                                        **validation_data_pool_dict)
+        va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images, **validation_data_pool_dict)
     else:
         tr_pool = None
         va_pool = None
 
     if not no_test:
+        print("Loading test data...")
         te_mungs, te_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['test'],
                                                         exclude_classes=exclude_classes)
-        te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images
-                                                               ** data_pool_dict)
+        te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images, **data_pool_dict)
     else:
         te_pool = None
 
