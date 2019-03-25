@@ -236,7 +236,8 @@ class PyTorchNetwork(object):
 
                     print('Validation results: {}'.format(pprint.pformat(validation_epoch_output['all'])))
 
-                    print_class_pair_results(validation_epoch_output)
+                    if self.tensorboard is None:
+                        print_class_pair_results(validation_epoch_output)
 
                 ##################################
                 # Log validation loss
