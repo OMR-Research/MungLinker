@@ -8,6 +8,7 @@ import logging
 import os
 import random
 import time
+from typing import List
 
 import numpy as np
 import yaml
@@ -54,57 +55,33 @@ MAX_PATCH_DISPLACEMENT = 0
 distances_cache_per_file = {}
 
 
-def get_distance_between_cropobjects_with_caching(object1: CropObject, object2: CropObject):
-    first_uid = object1.uid
-    second_uid = object2.uid
-
-    if object1.doc not in distances_cache_per_file:
-        distances_cache_per_file[object1.doc] = {}
-
-    distances_cache = distances_cache_per_file[object1.doc]
-
-    if first_uid in distances_cache:
-        if second_uid in distances_cache[first_uid]:
-            return distances_cache[first_uid][second_uid]
-    else:
-        distances_cache[first_uid] = {}
-
-    distance = cropobject_distance(object1, object2)
-    distances_cache[first_uid][second_uid] = distance
-    return distance
-
-
-def symbol_distances(cropobjects):
+def get_closest_objects(cropobjects: List[CropObject], threshold=100):
     """For each pair of cropobjects, compute the closest distance between their
     bounding boxes.
 
     :returns: A dict of dicts, indexed by objid, then objid, then distance.
     """
-    _start_time = time.time()
-    distances = {}
+    if cropobjects[0].doc in distances_cache_per_file:
+        return distances_cache_per_file[cropobjects[0].doc]
+
+    close_objects = {}
     for c in cropobjects:
-        distances[c] = {}
+        close_objects[c] = []
+
+    for c in cropobjects:
         for d in cropobjects:
+            distance = cropobject_distance(c, d)
+            if distance < threshold:
+                close_objects[c].append(d)
+                close_objects[d].append(c)
 
-            if d not in distances:
-                distances[d] = {}
-            if d not in distances[c]:
-                delta = get_distance_between_cropobjects_with_caching(c, d)
-                distances[c][d] = delta
-                distances[d][c] = delta
-    return distances
+    # Remove duplicates from lists
+    for key, neighbors in close_objects.items():
+        unique_neighbors = list(dict.fromkeys(neighbors))
+        close_objects[key] = unique_neighbors
 
-
-def get_close_objects(dists, threshold=100):
-    """Returns a dict: for each cropobject a list of cropobjects
-    that are within the threshold."""
-    output = {}
-    for c in dists:
-        output[c] = []
-        for d in dists[c]:
-            if dists[c][d] < threshold:
-                output[c].append(d)
-    return output
+    distances_cache_per_file[cropobjects[0].doc] = close_objects
+    return close_objects
 
 
 def negative_example_pairs(cropobjects,
@@ -125,11 +102,7 @@ def negative_example_pairs(cropobjects,
 
     :return: A list of tuples of (from, to) MuNG objects that are *not* linked.
     """
-    # Variant 1:
-    dists = symbol_distances(cropobjects)
-    close_neighbors = get_close_objects(dists, threshold=threshold)
-    # Variant 2:
-    # close_neighbors = get_close_objects2(cropobjects, threshold=threshold)
+    close_neighbors = get_closest_objects(cropobjects, threshold)
 
     # Exclude linked ones
     negative_example_pairs_dict = {}
