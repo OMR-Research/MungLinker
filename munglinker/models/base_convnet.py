@@ -23,6 +23,7 @@ BATCH_SIZE = 4
 
 class BaseConvnet(nn.Module):
     """Basic ConvNet with binary classifier sigmoid (no bias) at the end."""
+
     def __init__(self,
                  n_input_channels=3,
                  leaky_relu=False):
