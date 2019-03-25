@@ -8,6 +8,8 @@ import time
 
 import numpy as np
 
+from munglinker.utils import dice
+
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
@@ -106,6 +108,8 @@ def print_class_pair_results(class_pair_results, min_support=20):
             if k in values:
                 print('{}__{}'.format(cpair_name, k), values[k])
         print('---------')
+
+
 
 
 ##############################################################################

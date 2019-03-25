@@ -89,7 +89,7 @@ class BaseConvnet(nn.Module):
         self.fcn = fcn
 
         # Output through softmax
-        self.output_activation = nn.Sigmoid() # nn.Softmax()
+        self.output_activation = nn.Sigmoid()  # nn.Softmax()
 
     def get_conv_output(self, input):
         conv_output = self.cnn(input)

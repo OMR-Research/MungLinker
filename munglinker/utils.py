@@ -4,7 +4,7 @@ from __future__ import print_function, unicode_literals
 import copy
 import logging
 import os
-
+import numpy
 import pickle
 
 import collections
@@ -685,3 +685,17 @@ def config2data_pool_dict(config):
                             ''.format(config['RESTRICT_TO_GRAMMAR']))
 
     return data_pool_dict
+
+
+def dice(Seg, GT):
+    """ compute dice coefficient between current segmentation result and groundtruth (GT)"""
+
+    sum_GT = numpy.sum(GT)
+    sum_Seg = numpy.sum(Seg)
+
+    if (sum_GT + sum_Seg) == 0:
+        dice = 1.0
+    else:
+        dice = (2.0 * numpy.sum(Seg[GT == 1])) / (sum_Seg + sum_GT)
+
+    return dice

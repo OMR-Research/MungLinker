@@ -3,43 +3,28 @@ Mostly derived from lasagne_wrapper by Matthias Dorfer: segmentation_utils.py.""
 from __future__ import print_function, unicode_literals, division
 
 import argparse
-import logging
-
 import collections
+import logging
 import os
-
-import numpy
+import pickle
 import time
 
-import pickle
+import numpy
 import torch
+from fcnomr.detector import ConnectedComponentDetector
+from fcnomr.model import apply_model, init_model
+from fcnomr.preprocessing import MUSCIMALabelsDataset, MUSCIMALabelIterator
+from fcnomr.utils import lasagne_fcn_2_pytorch_fcn, build_experiment_name, label_img2mobcsv
 from scipy.misc import imread
 from skimage.measure import label, regionprops
 
-from fcnomr.detector import ConnectedComponentDetector
-from fcnomr.model import FCN, apply_model, FCNEncoder, FCNDecoder, MultiEncoderFCN, init_model
-from fcnomr.preprocessing import MUSCIMALabelsDataset, MUSCIMALabelIterator
-from fcnomr.utils import lasagne_fcn_2_pytorch_fcn, build_experiment_name, label_img2mobcsv
+from munglinker.utils import dice
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
 
 ##############################################################################
-
-
-def dice(Seg, GT):
-    """ compute dice coefficient between current segmentation result and groundtruth (GT)"""
-
-    sum_GT = numpy.sum(GT)
-    sum_Seg = numpy.sum(Seg)
-
-    if (sum_GT + sum_Seg) == 0:
-        dice = 1.0
-    else:
-        dice = (2.0 * numpy.sum(Seg[GT == 1])) / (sum_Seg + sum_GT)
-
-    return dice
 
 
 def compute_label_assignment(pred, gt):
