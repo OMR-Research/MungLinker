@@ -145,7 +145,8 @@ def main(args):
         split_file=args.split_file,
         config_file=args.config_file,
         test_only=False,
-        no_test=True)
+        no_test=True,
+        train_on_bounding_boxes=args.train_on_bounding_boxes)
     print('Loaded pools; training data has {} entities'
                  ''.format(len(data['train'].train_entities)))
 

@@ -11,11 +11,13 @@ import time
 
 import numpy as np
 import yaml
-from muscima.cropobject import cropobject_distance, bbox_intersection
-from muscima.grammar import DependencyGrammar
-from muscima.graph import NotationGraph
-from muscima.inference_engine_constants import _CONST
-from muscima.io import parse_cropobject_list, parse_cropobject_class_list
+
+from mung.node import cropobject_distance, bbox_intersection
+from mung.grammar import DependencyGrammar
+from mung.graph import NotationGraph
+from mung.inference.constants import _CONST
+from mung.io import parse_cropobject_list, parse_cropobject_class_list
+
 from tqdm import tqdm
 
 from munglinker.utils import config2data_pool_dict, load_grammar
@@ -503,7 +505,8 @@ def load_config(config_file):
 
 def load_munglinker_data_lite(mung_root, images_root,
                               include_names=None,
-                              max_items=None, exclude_classes=None):
+                              max_items=None, exclude_classes=None,
+                              masks_to_bounding_boxes=False):
     """Loads the MuNGs and corresponding images from the given folders.
     All *.xml files in ``mung_root`` are considered MuNG files, all *.png
     files in ``images_root`` are considered image files.
@@ -522,6 +525,12 @@ def load_munglinker_data_lite(mung_root, images_root,
     :param exclude_classes: When loading the MuNG, exclude notation objects
         that are labeled as one of these classes. (Most useful for excluding
         staff objects.)
+
+    :param masks_to_bounding_boxes: If set, will replace the masks of the
+        loaded MuNGOs with everything in the corresponding bounding box
+        of the image. This is to make the training data compatible with
+        the runtime outputs of RCNN-based detectors, which only output
+        the bounding box, not the mask.
 
     :returns: mungs, images  -- a tuple of lists.
     """
@@ -568,6 +577,15 @@ def load_munglinker_data_lite(mung_root, images_root,
         image = __load_image(image_file)
         images.append(image)
 
+        # This is for training on bounding boxes,
+        # which needs to be done in order to then process
+        # R-CNN detection outputs with Munglinker trained on ground truth
+        if masks_to_bounding_boxes:
+            for mungo in mung.cropobjects:
+                t, l, b, r = mungo.bounding_box
+                image_mask = image[t:b, l:r]
+                mungo.set_mask(image_mask)
+
         if max_items is not None:
             if len(mungs) >= max_items:
                 break
@@ -578,7 +596,8 @@ def load_munglinker_data_lite(mung_root, images_root,
 def load_munglinker_data(mung_root, images_root, split_file,
                          config_file=None,
                          test_only=False, no_test=False,
-                         exclude_classes=None):
+                         exclude_classes=None,
+                         train_on_bounding_boxes=False):
     """Loads the train/validation/test data pools for the MuNGLinker
     experiments.
 
@@ -601,6 +620,12 @@ def load_munglinker_data(mung_root, images_root, split_file,
         that are labeled as one of these classes. (Most useful for excluding
         staff objects.)
 
+    :param train_on_bounding_boxes: If set, will make the training data
+        compatible with the runtime outputs of RCNN-based detectors, which
+        only output the bounding box, not the mask. This is done by replacing
+        the MuNGO masks with the corresponding crop of the underlying image
+        once both the MuNG and the image are loaded.
+
     :return: ``dict(train=tr_pool, valid=va_pool, test=te_pool, train_tag="")``
     """
     split = load_split(split_file)
@@ -609,12 +634,16 @@ def load_munglinker_data(mung_root, images_root, split_file,
         config = load_config(config_file)
         data_pool_dict = config2data_pool_dict(config)
 
+        if 'TRAIN_ON_BOUNDING_BOXES' in config:
+            train_on_bounding_boxes = True
+
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False
         if 'VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT' in config:
             validation_data_pool_dict['max_negative_samples'] = \
                 config['VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT']
     else:
+        # Default configuration from variables set at the start of this module
         data_pool_dict = {
          'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
          'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
@@ -622,7 +651,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
          'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
          'zoom': IMAGE_ZOOM,
          'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
-         'balance_samples': False
+         'balance_samples': False,
         }
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False
@@ -630,13 +659,15 @@ def load_munglinker_data(mung_root, images_root, split_file,
     if not test_only:
         tr_mungs, tr_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['train'],
-                                                        exclude_classes=exclude_classes)
+                                                        exclude_classes=exclude_classes,
+                                                        masks_to_bounding_boxes=train_on_bounding_boxes)
         tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images,
                                         **data_pool_dict)
 
         va_mungs, va_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['valid'],
-                                                        exclude_classes=exclude_classes)
+                                                        exclude_classes=exclude_classes,
+                                                        masks_to_bounding_boxes=train_on_bounding_boxes)
         va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images,
                                         **validation_data_pool_dict)
     else:
@@ -646,7 +677,8 @@ def load_munglinker_data(mung_root, images_root, split_file,
     if not no_test:
         te_mungs, te_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['test'],
-                                                        exclude_classes=exclude_classes)
+                                                        exclude_classes=exclude_classes,
+                                                        masks_to_bounding_boxes=train_on_bounding_boxes)
         te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images
                                         **data_pool_dict)
     else:
