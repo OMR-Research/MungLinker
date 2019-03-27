@@ -7,6 +7,7 @@ import os
 import pprint
 import sys
 import time
+from typing import Dict
 
 import numpy
 import numpy.random
@@ -14,7 +15,8 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
-from munglinker.batch_iterators import threaded_generator_from_iterator, generator_from_iterator
+from munglinker.batch_iterators import threaded_generator_from_iterator, generator_from_iterator, PoolIterator
+from munglinker.data_pool import PairwiseMungoDataPool
 from munglinker.evaluation import evaluate_classification_by_class_pairs, print_class_pair_results
 from munglinker.utils import ColoredCommandLine, targets2classes
 from tensorboardX import SummaryWriter
@@ -103,7 +105,7 @@ class PyTorchNetwork(object):
 
     def fit(self,
             data,
-            batch_iters,
+            batch_iters: Dict[str, PoolIterator],
             training_strategy,
             dump_file=None,
             log_file=None,
@@ -170,7 +172,6 @@ class PyTorchNetwork(object):
         best_loss, best_training_loss, best_validation_loss = 1e7, 1e7, 1e7
         previous_fscore_training, previous_fscore_validation = 0.0, 0.0
 
-        print("Starting training...")
         try:
 
             ##################################################################
@@ -215,14 +216,13 @@ class PyTorchNetwork(object):
                 ##################################################################
                 # Validation: run with detector on checkpoints, otherwise
                 # only collect loss.
-                print('\nValidating epoch {}'.format(current_epoch_index))
-
                 #########################################################
                 # This only happens once per n_epochs_per_checkpoint
                 if current_epoch_index % training_strategy.n_epochs_per_checkpoint == 0:
                     validation_epoch_output = self.__validate_epoch(data['valid'],
                                                                     batch_iters['valid'],
-                                                                    loss_fn, training_strategy)
+                                                                    loss_fn, training_strategy,
+                                                                    current_epoch_index)
                     validation_results.append(validation_epoch_output)
 
                     self.__log_epoch_to_tensorboard(current_epoch_index,
@@ -342,7 +342,8 @@ class PyTorchNetwork(object):
                 value_for_negative_class, value_for_positive_class = value[0], value[1]
                 self.tensorboard.add_scalar('validation/{0}'.format(key), value_for_positive_class, epoch_index)
 
-    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, training_strategy):
+    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, training_strategy,
+                         current_epoch_index: int):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
@@ -357,7 +358,8 @@ class PyTorchNetwork(object):
         validation_results = collections.OrderedDict()
         losses = []
 
-        for current_batch_index in tqdm(range(number_of_batches), desc="Validating batches"):
+        for current_batch_index in tqdm(range(number_of_batches),
+                                        desc="Validating epoch {0}".format(current_epoch_index)):
             # Validation iterator might also output the MuNGOs,
             # for improved evaluation options.
             validation_batch = next(validation_generator)
@@ -481,54 +483,65 @@ class PyTorchNetwork(object):
 
         return agg_results_per_label, agg_overall
 
-    def __train_epoch(self, data_pool, training_batch_iterator, loss_function, optimizer,
+    def __train_epoch(self, data_pool: PairwiseMungoDataPool, training_batch_iterator: PoolIterator, loss_function,
+                      optimizer,
                       current_epoch_index: int,
                       estimate_dices=False,
                       debug_mode=False):
         """Run one epoch of training."""
-        colored_command_line = ColoredCommandLine()
 
         # Initialize data feeding from iterator
         iterator = training_batch_iterator(data_pool)
-        generator = generator_from_iterator(iterator)
 
         n_batches = len(data_pool) // training_batch_iterator.batch_size
 
         # Monitors
         batch_train_losses = []
 
+        progress_bar = None
+
         # Training loop, one epoch
-        with tqdm(total=n_batches + 1) as progress_bar:
-            for current_batch_index, data_point in enumerate(generator):
-                np_inputs, np_targets = data_point
+        for current_batch_index, data_point in enumerate(iterator):
 
-                # This assumes that the generator does not already
-                # return Torch Variables, which the model can however
-                # specify in its prepare() function(s).
-                inputs = Variable(torch.from_numpy(np_inputs).float())
-                targets = Variable(torch.from_numpy(np_targets).float())
-                if self.cuda:
-                    inputs = inputs.cuda()
-                    targets = targets.cuda()
+            if progress_bar is None:
+                # We create the progress-bar in the first iteration, after iterator-pool has initialized to prevent
+                # multiple nested tqdm-progress bars, which no longer work properly.
+                progress_bar = tqdm(total=n_batches + 1,
+                                     desc="Training epoch {0} (average loss: ?)".format(current_epoch_index))
 
-                # One training update:
-                optimizer.zero_grad()
-                predictions = self.net(inputs)
-                loss = loss_function(predictions, targets)
-                loss.backward()
-                optimizer.step()
+            np_inputs, np_targets = data_point
 
-                # Monitors update
-                batch_train_losses.append(self.__torch2np(loss))
+            # This assumes that the generator does not already
+            # return Torch Variables, which the model can however
+            # specify in its prepare() function(s).
+            inputs = Variable(torch.from_numpy(np_inputs).float())
+            targets = Variable(torch.from_numpy(np_targets).float())
+            if self.cuda:
+                inputs = inputs.cuda()
+                targets = targets.cuda()
 
-                # Aggregate monitors
-                average_training_loss = numpy.mean(batch_train_losses)
+            # One training update:
+            optimizer.zero_grad()
+            predictions = self.net(inputs)
+            loss = loss_function(predictions, targets)
+            loss.backward()
+            optimizer.step()
 
-                # Logging during training
+            # Monitors update
+            batch_train_losses.append(self.__torch2np(loss))
+
+            # Aggregate monitors
+            average_training_loss = numpy.mean(batch_train_losses)
+
+            # Logging during training
+            if progress_bar is not None:
                 progress_bar.set_description(
                     "Training epoch {0} (average loss: {1:.3f})".format(current_epoch_index, average_training_loss),
                     refresh=False)
                 progress_bar.update()
+
+        if progress_bar is not None:
+            progress_bar.close()
 
         output = {
             'number': 0,

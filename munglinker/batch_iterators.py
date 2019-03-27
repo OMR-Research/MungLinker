@@ -111,6 +111,10 @@ class PoolIterator(object):
         # compute current epoch index
         idx_epoch = np.mod(self.epoch_counter, self.n_epochs)
 
+        # shuffle train data before each epoch
+        if self.shuffle and idx_epoch == 0 and not self.epoch_counter == 0:
+            self.pool.reset_batch_generator()
+
         for i in range(int((n_samples + bs - 1) / bs)):
 
             i_start = i * bs + idx_epoch * self.k_samples
@@ -133,10 +137,6 @@ class PoolIterator(object):
             yield self.transform(*pool_items)
 
         self.epoch_counter += 1
-
-        # shuffle train data after full set iteration
-        if self.shuffle and (idx_epoch + 1) == self.n_epochs:
-            self.pool.reset_batch_generator()
 
     def transform(self, *args, **kwargs):
         return self.prepare(*args, **kwargs)
