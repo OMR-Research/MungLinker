@@ -5,22 +5,21 @@ import collections
 import logging
 import os
 import pprint
-import sys
-import time
 from typing import Dict
 
 import numpy
 import numpy.random
 import torch
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 from tqdm import tqdm
 
-from munglinker.batch_iterators import threaded_generator_from_iterator, generator_from_iterator, PoolIterator
+from munglinker.batch_iterators import generator_from_iterator, PoolIterator
 from munglinker.data_pool import PairwiseMungoDataPool
 from munglinker.evaluation import evaluate_classification_by_class_pairs, print_class_pair_results
-from munglinker.utils import ColoredCommandLine, targets2classes
-from tensorboardX import SummaryWriter
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from munglinker.training_strategies import PyTorchTrainingStrategy
+from munglinker.utils import targets2classes
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -42,7 +41,21 @@ class PyTorchNetwork(object):
     (matthias.dorfer@jku.at).
     """
 
-    def __init__(self, net):
+    def __init__(self,
+                 net,
+                 training_strategy: PyTorchTrainingStrategy = None,
+                 tensorboard_log_path=None):
+        """
+
+        :param net:
+
+        :param training_strategy: A ``NamedTuple``-like class that aggregates
+            parameters of the training process: optimizer type, initial LR and
+            decay, loss function, etc.
+
+        :param tensorboard_log_path: TensorBoard writer will write to this
+            directory.
+        """
         self.net = net
         self.cuda = torch.cuda.is_available()
 
@@ -51,6 +64,23 @@ class PyTorchNetwork(object):
 
         # Logging to tesnorboard through here
         self.tensorboard = None
+
+        if training_strategy is None:
+            self.training_strategy = PyTorchTrainingStrategy()
+        else:
+            self.training_strategy = training_strategy
+
+        if tensorboard_log_path is not None:
+            os.makedirs(tensorboard_log_path, exist_ok=True)
+            self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path, self.training_strategy.name),
+                                             comment=self.training_strategy.name)
+
+        # Extra variable for learning rate, since it attenuates during training
+        learning_rate = self.training_strategy.ini_learning_rate
+        self.optimizer = self.training_strategy.optimizer_class(self.net.parameters(), lr=learning_rate)
+
+        if training_strategy.best_params_file is None:
+            raise Exception('No file to save the best model is specified in training strategy!')
 
     def predict(self,
                 data_pool,
@@ -106,10 +136,10 @@ class PyTorchNetwork(object):
     def fit(self,
             data,
             batch_iters: Dict[str, PoolIterator],
-            training_strategy,
             dump_file=None,
             log_file=None,
-            tensorboard_log_path=None):
+            initial_epoch=1,
+            previously_best_validation_loss=numpy.inf):
         """Trains the model.
 
         :param data: A dict that has a ``'train'`` and a ``'valid'`` key,
@@ -119,20 +149,17 @@ class PyTorchNetwork(object):
         :param batch_iters: A dict that has a ``train`` and ``valid`` key,
             and its values are objects
 
-        :param training_strategy: A ``NamedTuple``-like class that aggregates
-            parameters of the training process: optimizer type, initial LR and
-            decay, loss function, etc.
-
         :param dump_file: The trained net's state dict will be dumped
             into this file. The dump happens every ecpoch in which the model
             improves, so that the best trained model is always saved.
 
         :param log_file: Training progress will be logged to this file.
 
-        :param tensorboard_log_path: TensorBoard writer will write to this
-            directory.
+        :param initial_epoch: If resuming the training, provide this parameter
+
+        :param previously_best_validation_loss: If resuming the training, provide the validation loss that was persisted
+
         """
-        colored_command_line = ColoredCommandLine()
 
         if dump_file is not None:
             out_path = os.path.dirname(dump_file)
@@ -143,16 +170,6 @@ class PyTorchNetwork(object):
             out_path = os.path.dirname(log_file)
             if out_path and not os.path.isdir(out_path):
                 os.mkdir(out_path)
-
-        if tensorboard_log_path is not None:
-            os.makedirs(tensorboard_log_path, exist_ok=True)
-            self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path, training_strategy.name),
-                                             comment=training_strategy.name)
-
-        # Extra variable for learning rate, since it attenuates during training
-        learning_rate = training_strategy.ini_learning_rate
-
-        # We don't need to create iter functions.
 
         # Initialize evaluation outputs
         training_results, validation_results = [], []
@@ -169,46 +186,49 @@ class PyTorchNetwork(object):
         refinement_steps = 0
 
         # Tracking
-        best_loss, best_training_loss, best_validation_loss = 1e7, 1e7, 1e7
+        best_training_loss, best_validation_loss = numpy.inf, previously_best_validation_loss
         previous_fscore_training, previous_fscore_validation = 0.0, 0.0
 
         try:
 
             ##################################################################
             # Preparation
-            if training_strategy.best_model_by_fscore:
-                best_loss = previous_fscore_training
+            if self.training_strategy.best_model_by_fscore:
+                best_validation_loss = previous_fscore_training
 
             # Set batch sizes.
-            data['train'].batch_size = training_strategy.batch_size
+            data['train'].batch_size = self.training_strategy.batch_size
 
-            # Initialize loss and optimizer
-            loss_fn = training_strategy.init_loss_fn()
-            optimizer = training_strategy.optimizer_class(self.net.parameters(),
-                                                          lr=learning_rate)
+            # Initialize loss
+            loss_fn = self.training_strategy.init_loss_fn()
 
             ##################################################################
             # Iteration
-            for current_epoch_index in range(1, training_strategy.max_epochs + 1):
+            for current_epoch_index in range(initial_epoch, self.training_strategy.max_epochs + 1):
 
                 ##################################################################
                 # Train the epoch
-                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_fn, optimizer,
+                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_fn, self.optimizer,
                                                            current_epoch_index)
                 training_results.append(training_epoch_output)
                 training_loss = training_epoch_output['train_loss']
                 training_losses.append(training_loss)
 
+                ##############################################################
                 # Checkpointing
-                if current_epoch_index % training_strategy.n_epochs_per_checkpoint == 0:
-                    if training_strategy.checkpoint_export_file:
-                        if training_strategy.checkpoint_export_file is None:
+                if current_epoch_index % self.training_strategy.n_epochs_per_checkpoint == 0:
+                    if self.training_strategy.checkpoint_export_file:
+                        if self.training_strategy.checkpoint_export_file is None:
                             os.makedirs("models", exist_ok=True)
                         else:
-                            os.makedirs(os.path.dirname(training_strategy.checkpoint_export_file),
+                            os.makedirs(os.path.dirname(self.training_strategy.checkpoint_export_file),
                                         exist_ok=True)
-                        torch.save(self.net.state_dict(),
-                                   training_strategy.checkpoint_export_file)
+                        torch.save({
+                            "epoch": current_epoch_index,
+                            "model_state_dict": self.net.state_dict(),
+                            "optimizer_state_dict": self.optimizer.state_dict(),
+                            "best_validation_loss": best_validation_loss},
+                            self.training_strategy.checkpoint_export_file)
                     else:
                         logging.warning('Cannot checkpoint: no checkpoint file'
                                         ' specified in training strategy!')
@@ -218,10 +238,10 @@ class PyTorchNetwork(object):
                 # only collect loss.
                 #########################################################
                 # This only happens once per n_epochs_per_checkpoint
-                if current_epoch_index % training_strategy.n_epochs_per_checkpoint == 0:
+                if current_epoch_index % self.training_strategy.n_epochs_per_checkpoint == 0:
                     validation_epoch_output = self.__validate_epoch(data['valid'],
                                                                     batch_iters['valid'],
-                                                                    loss_fn, training_strategy,
+                                                                    loss_fn, self.training_strategy,
                                                                     current_epoch_index)
                     validation_results.append(validation_epoch_output)
 
@@ -244,42 +264,41 @@ class PyTorchNetwork(object):
                 # Log validation loss
 
                 epoch_loss = validation_losses[-1]
-                if epoch_loss < best_loss:
-                    print('Validation loss improved from {0:.3f} to {1:.3f}'.format(best_loss, epoch_loss))
+                if epoch_loss < best_validation_loss:
+                    print('Validation loss improved from {0:.3f} to {1:.3f}'.format(best_validation_loss, epoch_loss))
                 else:
                     print('Validation loss did not improve over previous best {0:.3f}. Remaining patience: {1}'.format(
-                        best_loss, training_strategy.improvement_patience - epochs_since_last_improvement))
+                        best_validation_loss,
+                        self.training_strategy.improvement_patience - epochs_since_last_improvement))
 
                 ##############################################################
-                # Early-stopping: Check for improvement
-                if epoch_loss < best_loss:
-                    best_loss = epoch_loss
+                # Early-stopping: Check for improvement and save best model
+                if epoch_loss < best_validation_loss:
+                    best_validation_loss = epoch_loss
                     best_model = self.net.state_dict()
-                    # Save the best model!
-                    if training_strategy.best_params_file:
-                        print('Saving best model: {}'
-                              ''.format(training_strategy.best_params_file))
-                        torch.save(self.net.state_dict(),
-                                   training_strategy.best_params_file)
-                    else:
-                        logging.warning('No file to save the best model is specified'
-                                        ' in training strategy!!!')
+                    print('Saving best model: {}'.format(self.training_strategy.best_params_file))
+                    torch.save({
+                        "epoch": current_epoch_index,
+                        "model_state_dict": self.net.state_dict(),
+                        "optimizer_state_dict": self.optimizer.state_dict(),
+                        "best_validation_loss": best_validation_loss},
+                        self.training_strategy.best_params_file)
 
                     epochs_since_last_improvement = 0
                 else:
                     epochs_since_last_improvement += 1
 
                 # Early-stopping: continue, refine, or end training
-                if (refinement_stage and (epochs_since_last_improvement > training_strategy.refinement_patience)) \
-                        or (epochs_since_last_improvement > training_strategy.improvement_patience):
+                if (refinement_stage and (epochs_since_last_improvement > self.training_strategy.refinement_patience)) \
+                        or (epochs_since_last_improvement > self.training_strategy.improvement_patience):
                     print('Early-stopping: exceeded patience in epoch {0}'
                           ''.format(current_epoch_index + 1))
 
                     epochs_since_last_improvement = 0
                     refinement_stage = True
-                    if refinement_steps < training_strategy.n_refinement_steps:
-                        self.__update_learning_rate(optimizer,
-                                                    training_strategy.lr_refinement_multiplier)
+                    if refinement_steps < self.training_strategy.n_refinement_steps:
+                        self.__update_learning_rate(self.optimizer,
+                                                    self.training_strategy.lr_refinement_multiplier)
                         refinement_steps += 1
 
                     else:
@@ -288,7 +307,7 @@ class PyTorchNetwork(object):
                         print('Final validation:\n')
 
                         validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'], loss_fn,
-                                                                        training_strategy)
+                                                                        self.training_strategy, current_epoch_index)
                         validation_results.append(validation_epoch_output)
 
                         self.__log_epoch_to_tensorboard(current_epoch_index,
@@ -303,19 +322,11 @@ class PyTorchNetwork(object):
         # Set net to best weights
         self.net.load_state_dict(best_model)
 
-        # Export the best weights
-        if training_strategy.best_params_file:
-            torch.save(self.net.state_dict(),
-                       training_strategy.best_params_file)
-        else:
-            logging.warning('No file to save the best model is specified'
-                            ' in training strategy!!!')
-
         # Return best validation loss
-        if training_strategy.best_model_by_fscore:
-            return best_loss * -1
+        if self.training_strategy.best_model_by_fscore:
+            return best_validation_loss * -1
         else:
-            return best_loss
+            return best_validation_loss
 
     def __log_epoch_to_tensorboard(self, epoch_index,
                                    training_epoch_outputs,
@@ -508,7 +519,7 @@ class PyTorchNetwork(object):
                 # multiple nested tqdm-progress bars, which do not work properly. One tqdm-progress-bar will be
                 # triggered inside the iterator, when it first starts
                 progress_bar = tqdm(total=n_batches + 1,
-                                     desc="Training epoch {0} (average loss: ?)".format(current_epoch_index))
+                                    desc="Training epoch {0} (average loss: ?)".format(current_epoch_index))
 
             np_inputs, np_targets = data_point
 

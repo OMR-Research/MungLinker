@@ -212,9 +212,9 @@ def main(args):
         logging.info('Using mock network, so no parameters will be loaded.')
         model = MockNetwork()
     else:
-        logging.info('Loading model params from state dict: {0}'.format(args.params))
-        params = torch.load(args.params)
-        net.load_state_dict(params)
+        logging.info('Loading model checkpoint from state dict: {0}'.format(args.params))
+        checkpoint = torch.load(args.params)
+        net.load_state_dict(checkpoint['model_state_dict'])
         model = PyTorchNetwork(net=net)
 
     ########################################################

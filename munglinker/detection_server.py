@@ -86,7 +86,7 @@ def load_pytorch_model(model_filename, n_input_channels=1, n_output_channels=1,
     from munglinker.model import init_model
 
     state_dict = torch.load(model_filename,
-                            map_location=lambda storage, loc: storage)
+                            map_location=lambda storage, loc: storage)['model_state_dict']
 
     model = init_model(n_input_channels=n_input_channels,
                        n_output_channels=n_output_channels,

@@ -9,6 +9,7 @@ import time
 
 import torch
 from torch.nn import BCELoss
+import numpy as np
 
 from munglinker.data_pool import load_munglinker_data
 from munglinker.model import PyTorchNetwork
@@ -30,11 +31,10 @@ def build_argument_parser():
                         help='The name of the model that you wish to use.'
                              ' Has to be a name in the models/ subdir'
                              ' of munglinker (without the .py extension).')
-    parser.add_argument('--load_params',
-                        help='The state dict that should be loaded to initialize'
-                             ' this model. Careful: in order to continue training,'
-                             ' you would also have to recover the optimizer state.')
-
+    parser.add_argument('--continue_training', action='store_true',
+                        help='If set, checks whether a model under the name set'
+                             ' in -e already exists. If it does, initialize training'
+                             ' using its parameters.')
     parser.add_argument('-r', '--mung_root', action='store', default="data/mungs",
                         help='The root directory that contains the MuNG XMLs.')
     parser.add_argument('-i', '--image_root', action='store', default="data/images",
@@ -69,10 +69,6 @@ def build_argument_parser():
     parser.add_argument('--n_epochs_per_checkpoint', type=int, default=1,
                         help='Make a checkpoint of the model every N epochs.'
                              ' The checkpoint goes under the same name as -e.')
-    parser.add_argument('--continue_training', action='store_true',
-                        help='If set, checks whether a model under the name set'
-                             ' in -e already exists. If it does, initialize training'
-                             ' using its parameters.')
     parser.add_argument('--validation_outputs_dump_root', action='store', default=None,
                         help=' Dump validation result images'
                              '(prob. masks, prob. maps and predicted labels) into this directory'
@@ -114,16 +110,6 @@ def main(args):
     build_model_fn = model_mod.get_build_model()
     net = build_model_fn()
 
-    if args.load_params:
-        logging.info('Attempting to initialize from state dict:'
-                     ' {0}'.format(args.load_params))
-        if os.path.isfile(args.load_params):
-            try:
-                state_dict = torch.load(args.load_params)
-                net.load_state_dict(state_dict)
-            except OSError as e:
-                logging.warning('Attempting to load non-param file!')
-
     # ------------------------------------------------------------------------
     # Initializing the data
     data = load_munglinker_data(
@@ -154,11 +140,8 @@ def main(args):
     loss_fn_kwargs = dict()
 
     exp_name = build_experiment_name(args)
-    # We don't want our checkpoints to overwrite the best model.
+
     checkpoint_export_file = args.export + '.ckpt'
-    if os.path.exists(checkpoint_export_file):
-        logging.warning('Checkpointing file exists, removing...')
-        os.remove(checkpoint_export_file)
 
     strategy = PyTorchTrainingStrategy(name=exp_name,
                                        loss_fn_class=loss_fn_cls,
@@ -179,16 +162,30 @@ def main(args):
         strategy.improvement_patience = args.n_epochs + 1
         strategy.early_stopping = False
 
-    model = PyTorchNetwork(net=net)
+    model = PyTorchNetwork(net, strategy, args.tb_log_dir)
+    initial_epoch = 1
+    previously_best_validation_loss = np.inf
+
+    if args.continue_training:
+        logging.info('Attempting to initialize from checkpoint: {0}'.format(checkpoint_export_file))
+        try:
+            checkpoint = torch.load(checkpoint_export_file)
+            model.net.load_state_dict(checkpoint['model_state_dict'])
+            model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            initial_epoch = checkpoint['epoch'] + 1
+            previously_best_validation_loss = checkpoint['best_validation_loss']
+        except OSError as e:
+            logging.warning(
+                'Error during loading of previously saved checkpoint {0}: {1}'.format(checkpoint_export_file, e))
 
     # ------------------------------------------------------------------------
     # Run training.
     model.fit(data=data,
               batch_iters=batch_iters,
-              training_strategy=strategy,
               dump_file=None,
               log_file=None,
-              tensorboard_log_path=args.tb_log_dir)
+              initial_epoch=initial_epoch,
+              previously_best_validation_loss=previously_best_validation_loss)
 
     print('Saving model to: {0}'.format(args.export))
     torch.save(net.state_dict(), args.export)
