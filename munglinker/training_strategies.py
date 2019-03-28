@@ -18,7 +18,7 @@ class PyTorchTrainingStrategy(object):
                  max_epochs=1000,
                  batch_size=2,
                  refine_batch_size=False,
-                 improvement_patience=50,
+                 improvement_patience=20,
                  optimizer_class=Adam,
                  loss_fn_class=MSELoss,  # TODO: Back to softmax? This will be bad...
                  loss_fn_kwargs=dict(),
@@ -28,7 +28,6 @@ class PyTorchTrainingStrategy(object):
                  validation_subsample_window=None,
                  validation_stride_ratio=2,
                  validation_no_detector_subsample_window=None,
-                 validation_subsample_n=4,
                  validation_outputs_dump_root=None,
                  best_model_by_fscore=False,
                  n_epochs_per_checkpoint=10,
@@ -36,7 +35,7 @@ class PyTorchTrainingStrategy(object):
                  early_stopping=True,
                  lr_refinement_multiplier=0.2,
                  n_refinement_steps=5,
-                 refinement_patience=50,
+                 refinement_patience=20,
                  best_params_file=None,
                  ):
         """Initialize a training strategy. Includes some validation params.
@@ -87,10 +86,6 @@ class PyTorchTrainingStrategy(object):
         :param validation_no_detector_subsample_window: When validating without
             a detector (such as on non-checkpoint epochs, where we only want
             the validation loss), subsample this window.
-
-        :param validation_subsample_n: When subsampling the validation window,
-            re-sample this many times to get a lower-variance estimate of the
-            validation performance.
 
         :param validation_outputs_dump_root: Dump validation result images
             (prob. masks, prob. maps and predicted labels) into this directory

@@ -1,8 +1,15 @@
+# This configuration is for training a system that cen then work
+# with R-CNN detection outputs.
+TRAIN_ON_BOUNDING_BOXES: FALSE
+
 # Data point sampling parameters
 THRESHOLD_NEGATIVE_DISTANCE: 200
+
 MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
+
 # Resampling applies only to the training pool, not the validation pool. 1 = True, 0 = False
-RESAMPLE_EACH_EPOCH: 1
+RESAMPLE_EACH_EPOCH: TRUE
+
 # Restricting negative samples only to pairs permissible by a given muscima grammar
 RESTRICT_TO_GRAMMAR: ../resources/mff-muscima-mlclasses-annot.deprules
 
@@ -11,9 +18,10 @@ RESTRICT_TO_GRAMMAR: ../resources/mff-muscima-mlclasses-annot.deprules
 # THRESHOLD_NEGATIVE_DISTANCE
 VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 10
 
-# The size of the image patches that are ouptut
+# The size of the image patches that are output
 PATCH_HEIGHT: 256
 PATCH_WIDTH: 512
+
 # If this is set, the image in the patch will be masked to 0,
 # so the system will only have the from/to masks to work with.
 PATCH_NO_IMAGE: 1

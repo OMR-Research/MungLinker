@@ -1,9 +1,20 @@
+# This configuration is for training a system that cen then work
+# with R-CNN detection outputs.
+TRAIN_ON_BOUNDING_BOXES: FALSE
+
 # Data point sampling parameters
 THRESHOLD_NEGATIVE_DISTANCE: 200
-MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
-RESAMPLE_EACH_EPOCH: 0
 
-# The size of the image patches that are ouptut
+MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
+
+RESAMPLE_EACH_EPOCH: FALSE
+
+# At validation time, we should test against the runtime
+# situation, where we will classify every pair within
+# THRESHOLD_NEGATIVE_DISTANCE
+VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
+
+# The size of the image patches that are output
 PATCH_HEIGHT: 256
 PATCH_WIDTH: 512
 

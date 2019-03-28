@@ -62,7 +62,7 @@ def build_argument_parser():
     parser.add_argument('--no_early_stopping', action='store_true',
                         help='Do not apply early-stopping, run until --n_epochs'
                              ' are exhausted.')
-    parser.add_argument('--patience', type=int, default=50,
+    parser.add_argument('--patience', type=int, default=20,
                         help='Number of steps without improvement in validation'
                              ' loss after which the learning rate is attenuated.')
 
@@ -100,7 +100,6 @@ def build_argument_parser():
                         help='Turn on INFO messages.')
     parser.add_argument('--debug', action='store_true',
                         help='Turn on DEBUG messages.')
-    parser.add_argument('--train_on_bounding_boxes', action='store_true', default=False)
 
     return parser
 
@@ -134,7 +133,6 @@ def main(args):
         config_file=args.config_file,
         test_only=False,
         no_test=True,
-        train_on_bounding_boxes=args.train_on_bounding_boxes,
     )
     print('Loaded pools; training data has {} entities'
           ''.format(len(data['train'].train_entities)))

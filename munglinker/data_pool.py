@@ -586,8 +586,7 @@ def load_munglinker_data_lite(mung_root, images_root,
 def load_munglinker_data(mung_root, images_root, split_file,
                          config_file=None,
                          test_only=False, no_test=False,
-                         exclude_classes=None,
-                         train_on_bounding_boxes=False):
+                         exclude_classes=None):
     """Loads the train/validation/test data pools for the MuNGLinker
     experiments.
 
@@ -610,12 +609,6 @@ def load_munglinker_data(mung_root, images_root, split_file,
         that are labeled as one of these classes. (Most useful for excluding
         staff objects.)
 
-    :param train_on_bounding_boxes: If set, will make the training data
-        compatible with the runtime outputs of RCNN-based detectors, which
-        only output the bounding box, not the mask. This is done by replacing
-        the MuNGO masks with the corresponding crop of the underlying image
-        once both the MuNG and the image are loaded.
-
     :return: ``dict(train=tr_pool, valid=va_pool, test=te_pool, train_tag="")``
     """
     split = load_split(split_file)
@@ -624,8 +617,9 @@ def load_munglinker_data(mung_root, images_root, split_file,
         config = load_config(config_file)
         data_pool_dict = config2data_pool_dict(config)
 
+        train_on_bounding_boxes = False
         if 'TRAIN_ON_BOUNDING_BOXES' in config:
-            train_on_bounding_boxes = True
+            train_on_bounding_boxes = config['TRAIN_ON_BOUNDING_BOXES']
 
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False
