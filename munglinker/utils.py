@@ -1,15 +1,12 @@
-"""This module implements a class that..."""
 from __future__ import print_function, unicode_literals
 
 import copy
+import datetime
 import logging
 import os
-import numpy
 import pickle
 
-import collections
-
-import datetime
+import numpy
 import numpy as np
 from muscima.grammar import DependencyGrammar
 from muscima.io import parse_cropobject_class_list

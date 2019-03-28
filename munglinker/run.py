@@ -1,40 +1,23 @@
-#!/usr/bin/env python
 """This is a script that applies a trained e2e OMR model to an input image
 or a directory of input images, and outputs the corresponding MIDI file(s).
 """
 from __future__ import print_function, unicode_literals
+
 import argparse
-import collections
 import copy
 import logging
 import os
 import time
 
-import numpy as np
-import pickle
-
+import torch
 from muscima.graph import NotationGraph
 from muscima.io import parse_cropobject_list, export_cropobject_list
-from scipy.misc import imread, imsave
+from scipy.misc import imread
 
-from muscima.inference import play_midi
-
-import torch
-from torch.autograd import Variable
-
-from munglinker.augmentation import ImageAugmentationProcessor
-# from munglinker.model import FCN
-# from munglinker.model import apply_on_image, apply_on_image_window
-# from munglinker.model import apply_model
-# from munglinker.model import ensure_shape_divisible, set_image_as_variable
-# from munglinker.image_normalization import auto_invert, stretch_intensity
-# from munglinker.image_normalization import ImageNormalizer
-# from munglinker.utils import lasagne_fcn_2_pytorch_fcn
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
 from munglinker.model import PyTorchNetwork
-from munglinker.mung2midi import build_midi
-from munglinker.utils import generate_random_mm, select_model, config2data_pool_dict, MockNetwork
 from munglinker.utils import midi_matrix_to_midi
+from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -42,12 +25,12 @@ __author__ = "Jan Hajic jr."
 
 ##############################################################################
 
-
 class MunglinkerRunner(object):
     """The MunglinkerRunner defines the Munglinker component interface. It has a run()
     method that takes a MuNG (the whole graph) and outputs a new MuNG with the same
     objects, but different edges.
     """
+
     def __init__(self, model, config, runtime_batch_iterator,
                  replace_all_edges=True):
         """Initialize the Munglinker runner.
@@ -124,15 +107,6 @@ class MunglinkerRunner(object):
         return midi_matrix_to_midi(output_repr)
 
 
-##############################################################################
-
-
-def show_result(*args, **kwargs):
-    raise NotImplementedError()
-
-##############################################################################
-
-
 def build_argument_parser():
     parser = argparse.ArgumentParser(description=__doc__, add_help=True,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -191,12 +165,17 @@ def build_argument_parser():
     return parser
 
 
-def main(args):
-    logging.info('Starting main...')
-    _start_time = time.time()
+if __name__ == '__main__':
+    parser = build_argument_parser()
+    args = parser.parse_args()
 
-    ##########################################################################
-    # First we prepare the model
+    if args.verbose:
+        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
+    if args.debug:
+        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+
+    logging.info('Starting main...')
+    start_time = time.time()
 
     logging.info('Loading config: {}'.format(args.config))
     config = load_config(args.config)
@@ -217,17 +196,12 @@ def main(args):
         net.load_state_dict(checkpoint['model_state_dict'])
         model = PyTorchNetwork(net=net)
 
-    ########################################################
-    # Prepare runner
-
     logging.info('Initializing runner...')
     runner = MunglinkerRunner(model=model,
                               config=config,
                               runtime_batch_iterator=runtime_batch_iterator,
                               replace_all_edges=True)
 
-    ########################################################
-    # Load data & run
     image_files = []
     input_mung_files = []
 
@@ -247,12 +221,8 @@ def main(args):
     else:
         raise OSError('Input MuNG(s) not found: {}'.format(args.input_mung))
 
-    ########################################################
-    # Run munglinker model
-
     output_mungs = []
     for i, (image_file, input_mung_file) in enumerate(zip(image_files, input_mung_files)):
-
         img = imread(image_file, mode='L')
 
         input_mungos = parse_cropobject_list(input_mung_file)
@@ -261,9 +231,6 @@ def main(args):
         logging.info('Running Munglinker: {} / {}'.format(i, len(image_files)))
         output_mung = runner.run(img, input_mung)
         output_mungs.append(output_mung)
-
-    ##########################################################################
-    # And deal with the output:
 
     if args.visualize:
         logging.info('Visualization not implemented!!!')
@@ -290,19 +257,5 @@ def main(args):
         with open(output_mung_file, 'w') as hdl:
             hdl.write(export_cropobject_list(output_mung.cropobjects))
 
-    # (No evaluation in this script.)
-
     _end_time = time.time()
-    logging.info('run.py done in {0:.3f} s'.format(_end_time - _start_time))
-
-
-if __name__ == '__main__':
-    parser = build_argument_parser()
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-    if args.debug:
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
-
-    main(args)
+    logging.info('run.py done in {0:.3f} s'.format(_end_time - start_time))
