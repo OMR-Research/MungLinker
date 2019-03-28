@@ -85,7 +85,8 @@ class MunglinkerRunner(object):
                 m.inlinks = []
 
         new_mung = NotationGraph(mungo_copies)
-        for mungo_pair, has_edge in zip(mungo_pairs, output_classes):
+        for mungo_pair, output_class in zip(mungo_pairs, output_classes):
+            has_edge = output_class == 1
             if has_edge:
                 logging.debug('Adding edge: {} --> {}'.format(mungo_pair[0].objid,
                                                               mungo_pair[1].objid))
@@ -139,7 +140,7 @@ def build_argument_parser():
     parser.add_argument('--visualize', action='store_true',
                         help='If set, will plot the image and output MIDI'
                              '[NOT IMPLEMENTED].')
-    parser.add_argument('--batch_size', type=int, action='store', default=1,
+    parser.add_argument('--batch_size', type=int, action='store', default=10,
                         help='The runtime iterator batch size.')
     parser.add_argument('--mock', action='store_true',
                         help='If set, will not load a real model and just run'

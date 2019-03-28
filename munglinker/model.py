@@ -99,7 +99,6 @@ class PyTorchNetwork(object):
 
         # Initialize data feeding from iterator
         iterator = runtime_batch_iterator(data_pool)
-        generator = generator_from_iterator(iterator)
 
         n_batches = len(data_pool) // runtime_batch_iterator.batch_size
         print('n. of runtime entities: {}; batches: {}'
@@ -107,10 +106,10 @@ class PyTorchNetwork(object):
 
         # Aggregate results (two-way)
         all_mungo_pairs = []
-        all_np_predictions = numpy.zeros((0, 2))
+        all_np_predictions = None
 
         # Run generator
-        for batch_idx, _data_point in enumerate(generator):
+        for batch_idx, _data_point in enumerate(tqdm(iterator, total=n_batches, desc="Predicting connections")):
             mungo_pairs, np_inputs = _data_point  # next(generator)
 
             mungo_pairs = list(mungo_pairs)
@@ -119,9 +118,12 @@ class PyTorchNetwork(object):
             inputs = self.__np2torch(np_inputs)
             predictions = self.net(inputs)
             np_predictions = self.__torch2np(predictions)
-            all_np_predictions = numpy.concatenate((all_np_predictions, np_predictions))
+            if all_np_predictions is None:
+                all_np_predictions = np_predictions
+            else:
+                all_np_predictions = numpy.concatenate((all_np_predictions, np_predictions))
 
-        all_np_predicted_classes = targets2classes(all_np_predictions)
+        all_np_predicted_classes = targets2classes(all_np_predictions).flatten()
         logging.info('Prediction: {} out of {} positive'
                      ''.format(all_np_predicted_classes.sum(), all_np_predicted_classes.size))
         return all_mungo_pairs, all_np_predicted_classes
