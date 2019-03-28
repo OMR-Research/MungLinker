@@ -122,9 +122,6 @@ def main(args):
 
     print('Data initialized.')
 
-    # ------------------------------------------------------------------------
-    # Initializing the training strategy
-
     loss_fn_cls = BCELoss
     loss_fn_kwargs = dict()
 
@@ -167,8 +164,6 @@ def main(args):
             logging.warning(
                 'Error during loading of previously saved checkpoint {0}: {1}'.format(checkpoint_export_file, e))
 
-    # ------------------------------------------------------------------------
-    # Run training.
     model.fit(data=data,
               batch_iters=batch_iters,
               dump_file=None,

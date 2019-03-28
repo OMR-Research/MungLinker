@@ -10,9 +10,9 @@ import os
 import time
 
 import torch
+from imageio import imread
 from muscima.graph import NotationGraph
 from muscima.io import parse_cropobject_list, export_cropobject_list
-from scipy.misc import imread
 
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
 from munglinker.model import PyTorchNetwork
@@ -65,7 +65,7 @@ class MunglinkerRunner(object):
 
         self.replace_all_edges = replace_all_edges
 
-    def run(self, image, mung):
+    def run(self, image, mung: NotationGraph) -> NotationGraph:
         """Processes the image and outputs MIDI.
 
         :returns: A ``midiutil.MidiFile.MIDIFile`` object.
@@ -111,16 +111,12 @@ def build_argument_parser():
     parser = argparse.ArgumentParser(description=__doc__, add_help=True,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    parser.add_argument('-m', '--model', required=True,
+    parser.add_argument('-m', '--model', default="base_convnet",
                         help='The name of the model that you wish to use.')
-    parser.add_argument('-p', '--params', required=True,
-                        help='The state dict that should be loaded for this model.'
-                             ' Note that you have to make sure you are loading'
-                             ' a state dict for the right model architecture.')
-    parser.add_argument('-c', '--config', required=True,
-                        help='The config file that controls how inputs'
-                             ' to the network will be extracted from MuNGOs.')
-
+    parser.add_argument('-p', '--params', default="models/default_model.tsd",
+                        help='The exported model from the training.')
+    parser.add_argument('-c', '--config', default="exp_configs/muscima_base.yaml",
+                        help='The config file that controls how inputs to the network will be extracted from MuNGOs.')
     parser.add_argument('-i', '--input_image', required=True,
                         help='A single-system input image for which MIDI should'
                              ' be output. This is the simplest input mode.'
@@ -129,34 +125,28 @@ def build_argument_parser():
                              ' to also be a directory with correspondingly named'
                              ' MuNG files (like for training).')
     parser.add_argument('-g', '--input_mung', required=True,
-                        help='A MuNG XML file. The edges inoinks/outlinks in'
-                             ' the file are ignored, unless the --retain_edges'
-                             ' flag is set [NOT IMPLEMENTED]. If this is a'
+                        help='A MuNG XML file. The edges inlinks/outlinks in'
+                             ' the file are ignored. If this is a'
                              ' directory, it will run over all MuNGs in that'
                              ' directory, expecting --input_image to also'
                              ' be a directory with correspondingly named'
                              ' image files (like for training).')
-
     parser.add_argument('-o', '--output_mung', required=True,
                         help='The MuNG with inferred edges should be exported'
                              ' to this file. If this is a directory, will instead'
                              ' export all the output MuNGs here, with names copied'
                              ' from the input MuNGs.')
-
     parser.add_argument('--visualize', action='store_true',
                         help='If set, will plot the image and output MIDI'
                              '[NOT IMPLEMENTED].')
-    parser.add_argument('--batch_size', type=int, action='store', default=10,
+    parser.add_argument('--batch_size', type=int, action='store', default=1,
                         help='The runtime iterator batch size.')
-
     parser.add_argument('--mock', action='store_true',
                         help='If set, will not load a real model and just run'
                              ' a mock prediction using MockNetwork.predict()')
-
     parser.add_argument('--play', action='store_true',
                         help='If set, will run MIDI inference over the output'
                              ' MuNG and play the result. [NOT IMPLEMENTED]')
-
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
     parser.add_argument('--debug', action='store_true',
@@ -218,9 +208,12 @@ if __name__ == '__main__':
     else:
         raise OSError('Input MuNG(s) not found: {}'.format(args.input_mung))
 
+    if len(image_files) != len(input_mung_files):
+        raise Exception("Length of images and MuNGs is not the same")
+
     output_mungs = []
     for i, (image_file, input_mung_file) in enumerate(zip(image_files, input_mung_files)):
-        img = imread(image_file, mode='L')
+        img = imread(image_file, pilmode='L')
 
         input_mungos = parse_cropobject_list(input_mung_file)
         input_mung = NotationGraph(input_mungos)

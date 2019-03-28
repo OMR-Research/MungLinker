@@ -74,7 +74,7 @@ class PyTorchNetwork(object):
         learning_rate = self.training_strategy.ini_learning_rate
         self.optimizer = self.training_strategy.optimizer_class(self.net.parameters(), lr=learning_rate)
 
-        if training_strategy.best_params_file is None:
+        if self.training_strategy.best_params_file is None:
             raise Exception('No file to save the best model is specified in training strategy!')
 
     def predict(self, data_pool, runtime_batch_iterator):

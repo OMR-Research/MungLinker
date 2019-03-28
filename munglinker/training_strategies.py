@@ -36,7 +36,7 @@ class PyTorchTrainingStrategy(object):
                  lr_refinement_multiplier=0.2,
                  n_refinement_steps=5,
                  refinement_patience=20,
-                 best_params_file=None,
+                 best_params_file="default_model.tsd",
                  ):
         """Initialize a training strategy. Includes some validation params.
 
