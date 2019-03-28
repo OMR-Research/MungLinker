@@ -10,8 +10,6 @@ import numpy as np
 
 from muscima.inference_engine_constants import _CONST
 
-from munglinker.utils import plot_batch_patches
-
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
@@ -36,7 +34,7 @@ def threaded_generator(generator, num_cached=10):
     # define producer
     def producer():
         for item in generator:
-            #item = np.array(item)  # if needed, create a copy here
+            # item = np.array(item)  # if needed, create a copy here
             queue.put(item)
         queue.put(end_marker)
 
@@ -82,6 +80,7 @@ class PoolIterator(object):
     training/runtime, and the batch iterator is an efficient interface that
     feeds data points to the models' prepare() smoothly (esp. for training).
     """
+
     def __init__(self, batch_size, prepare=None, k_samples=None, shuffle=True):
         self.batch_size = batch_size
 
@@ -177,6 +176,7 @@ class PoolIterator(object):
 
         return output
 
+
 ##############################################################################
 
 
@@ -196,23 +196,22 @@ def main(args):
     logging.info('Starting main...')
     _start_time = time.time()
 
-    from munglinker.data_pool import load_munglinker_data_lite
-    from munglinker.models import base_convnet as model
-    from munglinker.data_pool import PairwiseMungoDataPool
-
-    # Your code goes here
     mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
     images_root = '/Users/hajicj/data/MUSCIMA++/v0.9/data/fulls'
 
-    mungs, images = load_munglinker_data_lite(mung_root, images_root,
-                                              max_items=1,
+    from munglinker.data_pool import load_munglinker_data_lite, PairwiseMungoDataPool
+    from munglinker.models.base_convnet import BaseConvnet
+    from munglinker.utils import plot_batch_patches
+
+    mungs, images = load_munglinker_data_lite(mung_root, images_root, max_items=1,
                                               exclude_classes=_CONST.STAFF_CROPOBJECT_CLSNAMES)
     data_pool = PairwiseMungoDataPool(mungs=mungs, images=images,
                                       resample_train_entities=True,
                                       max_negative_samples=1)
     data_pool.reset_batch_generator()
 
-    train_batch_iter = model.train_batch_iterator(batch_size=300)
+    model = BaseConvnet(batch_size=300)
+    train_batch_iter = model.train_batch_iterator()
 
     iterator = train_batch_iter(data_pool)
     generator = threaded_generator_from_iterator(iterator)

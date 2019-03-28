@@ -13,6 +13,7 @@ import torch
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 from torch.autograd import Variable
+from torch.nn import Module
 from tqdm import tqdm
 
 from munglinker.batch_iterators import generator_from_iterator, PoolIterator
@@ -41,12 +42,8 @@ class PyTorchNetwork(object):
     (matthias.dorfer@jku.at).
     """
 
-    def __init__(self,
-                 net,
-                 training_strategy: PyTorchTrainingStrategy = None,
-                 tensorboard_log_path=None):
+    def __init__(self, net: Module, training_strategy: PyTorchTrainingStrategy = None, tensorboard_log_path=None):
         """
-
         :param net:
 
         :param training_strategy: A ``NamedTuple``-like class that aggregates
@@ -62,14 +59,12 @@ class PyTorchNetwork(object):
         if self.cuda:
             self.net.cuda()
 
-        # Logging to tesnorboard through here
-        self.tensorboard = None
-
         if training_strategy is None:
             self.training_strategy = PyTorchTrainingStrategy()
         else:
             self.training_strategy = training_strategy
 
+        self.tensorboard = None  # type: SummaryWriter
         if tensorboard_log_path is not None:
             os.makedirs(tensorboard_log_path, exist_ok=True)
             self.tensorboard = SummaryWriter(os.path.join(tensorboard_log_path, self.training_strategy.name),
@@ -82,9 +77,7 @@ class PyTorchNetwork(object):
         if training_strategy.best_params_file is None:
             raise Exception('No file to save the best model is specified in training strategy!')
 
-    def predict(self,
-                data_pool,
-                runtime_batch_iterator):
+    def predict(self, data_pool, runtime_batch_iterator):
         """Runs the model prediction. Expects a data pool and a runtime
         batch iterator.
 

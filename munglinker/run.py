@@ -181,20 +181,17 @@ if __name__ == '__main__':
     config = load_config(args.config)
 
     logging.info('Loading model: {}'.format(args.model))
-    model_mod = select_model(args.model)
-    build_model_fn = model_mod.get_build_model()
-    net = build_model_fn()
-
-    runtime_batch_iterator = model_mod.runtime_batch_iterator(batch_size=args.batch_size)
+    mung_linker_network = select_model(args.model, args.batch_size)
+    runtime_batch_iterator = mung_linker_network.runtime_batch_iterator()
 
     if args.mock:
         logging.info('Using mock network, so no parameters will be loaded.')
-        model = MockNetwork()
+        model = MockNetwork(args.batch_size)
     else:
         logging.info('Loading model checkpoint from state dict: {0}'.format(args.params))
         checkpoint = torch.load(args.params)
-        net.load_state_dict(checkpoint['model_state_dict'])
-        model = PyTorchNetwork(net=net)
+        mung_linker_network.load_state_dict(checkpoint['model_state_dict'])
+        model = PyTorchNetwork(net=mung_linker_network)
 
     logging.info('Initializing runner...')
     runner = MunglinkerRunner(model=model,

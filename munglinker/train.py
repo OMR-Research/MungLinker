@@ -28,9 +28,9 @@ def build_argument_parser():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('-m', '--model', default="base_convnet",
-                        help='The name of the model that you wish to use.'
-                             ' Has to be a name in the models/ subdir'
-                             ' of munglinker (without the .py extension).')
+                        help='The name of the model that you wish to use. '
+                             'Can be one of ["base_convnet", "multitask_class_feedback", "multitask_fully_shared", '
+                             '"multitask_partially_shared"].')
     parser.add_argument('--continue_training', action='store_true',
                         help='If set, checks whether a model under the name set'
                              ' in -e already exists. If it does, initialize training'
@@ -103,15 +103,8 @@ def build_argument_parser():
 def main(args):
     _start_time = time.time()
 
-    # ------------------------------------------------------------------------
-    # Initializing the model
+    mung_linker_network = select_model(args.model, args.batch_size)
 
-    model_mod = select_model(args.model)
-    build_model_fn = model_mod.get_build_model()
-    net = build_model_fn()
-
-    # ------------------------------------------------------------------------
-    # Initializing the data
     data = load_munglinker_data(
         mung_root=args.mung_root,
         images_root=args.image_root,
@@ -120,16 +113,12 @@ def main(args):
         test_only=False,
         no_test=True,
     )
-    print('Loaded pools; training data has {} entities'
-          ''.format(len(data['train'].train_entities)))
+    print('Loaded pools; training data has {} entities'.format(len(data['train'].train_entities)))
 
-    # Iterators
-    train_batch_iter = model_mod.train_batch_iterator(args.batch_size)
-    valid_batch_iter = model_mod.valid_batch_iterator(args.batch_size)
-    test_batch_iter = model_mod.test_batch_iterator(args.batch_size)
-    batch_iters = {'train': train_batch_iter,
-                   'valid': valid_batch_iter,
-                   'test': test_batch_iter}
+    train_batch_iter = mung_linker_network.train_batch_iterator()
+    valid_batch_iter = mung_linker_network.valid_batch_iterator()
+    test_batch_iter = mung_linker_network.test_batch_iterator()
+    batch_iters = {'train': train_batch_iter, 'valid': valid_batch_iter, 'test': test_batch_iter}
 
     print('Data initialized.')
 
@@ -162,7 +151,7 @@ def main(args):
         strategy.improvement_patience = args.n_epochs + 1
         strategy.early_stopping = False
 
-    model = PyTorchNetwork(net, strategy, args.tb_log_dir)
+    model = PyTorchNetwork(mung_linker_network, strategy, args.tb_log_dir)
     initial_epoch = 1
     previously_best_validation_loss = np.inf
 
@@ -188,7 +177,7 @@ def main(args):
               previously_best_validation_loss=previously_best_validation_loss)
 
     print('Saving model to: {0}'.format(args.export))
-    torch.save(net.state_dict(), args.export)
+    torch.save(mung_linker_network.state_dict(), args.export)
 
     _end_time = time.time()
     print('train.py done in {0:.3f} s'.format(_end_time - _start_time))

@@ -1,5 +1,3 @@
-from __future__ import print_function, unicode_literals
-
 import copy
 import datetime
 import logging
@@ -10,6 +8,13 @@ import numpy
 import numpy as np
 from muscima.grammar import DependencyGrammar
 from muscima.io import parse_cropobject_class_list
+
+from munglinker.models.base_convnet import BaseConvnet
+from munglinker.models.mock_convnet import MockNetwork
+from munglinker.models.multitask_class_feedback import MultitaskClassFeedback
+from munglinker.models.multitask_fully_shared import MultitaskFullyShared
+from munglinker.models.multitask_partially_shared import MultitaskPartiallyShared
+from munglinker.models.munglinker_network import MungLinkerNetwork
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -395,62 +400,22 @@ def n_onsets_from_midi_matrix(mm):
     return n_onsets
 
 
-##############################################################################
-
-
-class MockNetwork(object):
-    """This class is a mock object for testing pipelines when no real trained
-    model is available. Outputs random labels.
-    """
-
-    def predict(self, data_pool, runtime_batch_iterator):
-        # Ensure correct data pool behavior.
-        data_pool.resample_train_entities = False
-
-        # Initialize data feeding from iterator
-        iterator = runtime_batch_iterator(data_pool)
-        generator = (x for x in iterator)  # No threaded generator
-
-        n_batches = len(data_pool) // runtime_batch_iterator.batch_size
-        logging.info('n. of runtime entities: {}; batches: {}'
-                     ''.format(len(data_pool), n_batches))
-
-        # Aggregate results
-        all_mungo_pairs = []
-        all_np_preds = np.array([])
-
-        # Run generator
-        for batch_idx, _data_point in enumerate(generator):
-            mungo_pairs, np_inputs = _data_point  # next(generator)
-            mungo_pairs = list(mungo_pairs)
-            all_mungo_pairs.extend(list(mungo_pairs))
-
-            np_pred = np.random.randint(0, 2, len(mungo_pairs))
-            # inputs = self._np2torch(np_inputs)
-            # pred = self.net(inputs)
-            # np_pred = self._torch2np(pred)
-            all_np_preds = np.concatenate((all_np_preds, np_pred))
-
-        logging.info('All np preds: {} positive ({})'
-                     ''.format(all_np_preds.sum(), all_np_preds.mean()))
-        all_np_pred_classes = targets2classes(all_np_preds)
-        return all_mungo_pairs, all_np_pred_classes
-
-
-##############################################################################
-
-
-def select_model(model_path):
+def select_model(model_name: str, batch_size: int) -> MungLinkerNetwork:
     """Select model (returns the module). If the ``MOCK`` model is selected,
     returns not a model module, but the MockNetwork object that simulates
     giving predictions like a ``PyTorchNetwork.predict()`` would."""
-    model_str = os.path.basename(model_path)
-    model_str = model_str.split('.py')[0]
-    import importlib
-    model = importlib.import_module('munglinker.models.{}'.format(model_str))
-    # exec('from munglinker.models import ' + model_str + ' as model')
-    model.EXP_NAME = model_str
-    return model
+    if model_name == "base_convnet":
+        return BaseConvnet(batch_size=batch_size)
+    elif model_name == "multitask_class_feedback":
+        return MultitaskClassFeedback(batch_size=batch_size)
+    elif model_name == "multitask_fully_shared":
+        return MultitaskFullyShared(batch_size=batch_size)
+    elif model_name == "multitask_partially_shared":
+        return MultitaskPartiallyShared(batch_size=batch_size)
+    elif model_name == "mock":
+        return MockNetwork(batch_size=batch_size)
+    else:
+        raise Exception("Unknown network model selected")
 
 
 ##############################################################################

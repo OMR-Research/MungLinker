@@ -1,33 +1,27 @@
-"""This module implements a class that..."""
-from __future__ import print_function, unicode_literals
-
 import logging
 
 import numpy as np
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from muscima.cropobject import CropObject
 from torch.autograd import Variable
 from typing import List
 
+from munglinker.models.munglinker_network import MungLinkerNetwork
+
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
-MIDI_MAX_LEN = 256
-MIDI_N_PITCHES = 128
 
-BATCH_SIZE = 4
-
-
-class BaseConvnet(nn.Module):
+class BaseConvnet(MungLinkerNetwork):
     """Basic ConvNet with binary classifier sigmoid (no bias) at the end."""
 
     def __init__(self,
                  n_input_channels=3,
-                 leaky_relu=False):
-        super(BaseConvnet, self).__init__()
+                 leaky_relu=False,
+                 batch_size=4):
+        super(BaseConvnet, self).__init__(batch_size)
 
         self.n_input_channels = n_input_channels
 
@@ -39,8 +33,6 @@ class BaseConvnet(nn.Module):
         paddings = [1, 1, 1, 1, 1]
         strides = [1, 1, 1, 1, 1]
         n_filters = [8, 16, 32, 32, 32]
-
-        n_pools = 5
 
         cnn = nn.Sequential()
 
@@ -110,128 +102,63 @@ class BaseConvnet(nn.Module):
         output = self.get_output_from_fcn_output(fcn_output)
         return output
 
+    def prepare_patch_and_target(self, mungos_from: List[CropObject],
+                                 mungos_to: List[CropObject],
+                                 patches: np.ndarray,
+                                 targets: np.ndarray,
+                                 target_is_onehot: bool = False,
+                                 also_output_mungos: bool = False):
+        """Does not do anything to patches.
 
-def get_build_model():
-    return BaseConvnet
+        :param mungos_from: list of CropObjects corresponding to the FROM-half
+            of the pairs; the length of the list is ``batch_size``.
 
+        :param mungos_to: list of CropObjects corresponding to the TO-half
+            of the pairs; the length of the list is ``batch_size``.
 
-##############################################################################
+        :param patches: 4-D batch: ``batch_size x n_channels x patch_rows x patch_columns``
 
+        :param targets: 1-D array of dim ``batch_size``, expected to be binary
 
-def prepare_patch_and_target(mungos_from: List[CropObject],
-                             mungos_to: List[CropObject],
-                             patches: np.ndarray,
-                             targets: np.ndarray,
-                             target_is_onehot: bool = False,
-                             also_output_mungos: bool = False):
-    """Does not do anything to patches.
+        :param target_is_onehot: Expands targets to two-way softmax format.
 
-    :param mungos_from: list of CropObjects corresponding to the FROM-half
-        of the pairs; the length of the list is ``batch_size``.
+        :param also_output_mungos: If set, outputs ``mungos_from, mungos_to, patches, targets``
+            -- useful for evaluation, when you need at hand information about all the inputs.
+        """
+        if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
+            target_for_softmax = np.zeros((targets.shape[0], 2))
+            target_for_softmax[range(targets.shape[0]), targets.astype('uint8')] = 1.0
+        elif (not target_is_onehot) and (targets.ndim > 1):
+            target_for_softmax = np.argmax(targets, axis=1)
+        else:
+            target_for_softmax = targets
 
-    :param mungos_to: list of CropObjects corresponding to the TO-half
-        of the pairs; the length of the list is ``batch_size``.
+        if also_output_mungos:
+            return mungos_from, mungos_to, patches, target_for_softmax
 
-    :param patches: 4-D batch: ``batch_size x n_channels x patch_rows x patch_columns``
+        return patches, target_for_softmax
 
-    :param targets: 1-D array of dim ``batch_size``, expected to be binary
+    def prepare_train(self, *args, **kwargs):
+        X, y = self.prepare_patch_and_target(*args, **kwargs)
+        return X, y
 
-    :param target_is_onehot: Expands targets to two-way softmax format.
+    def prepare_valid(self, *args, **kwargs):
+        m_from, m_to, X, y = self.prepare_patch_and_target(*args, **kwargs, also_output_mungos=True)
+        return m_from, m_to, X, y
 
-    :param also_output_mungos: If set, outputs ``mungos_from, mungos_to, patches, targets``
-        -- useful for evaluation, when you need at hand information about all the inputs.
-    """
-    if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
-        target_for_softmax = np.zeros((targets.shape[0], 2))
-        target_for_softmax[range(targets.shape[0]), targets.astype('uint8')] = 1.0
-    elif (not target_is_onehot) and (targets.ndim > 1):
-        target_for_softmax = np.argmax(targets, axis=1)
-    else:
-        target_for_softmax = targets
+    def prepare_test(self, *args, **kwargs):
+        m_from, m_to, X, y = self.prepare_patch_and_target(*args, **kwargs, also_output_mungos=True)
+        return m_from, m_to, X, y
 
-    if also_output_mungos:
-        return mungos_from, mungos_to, patches, target_for_softmax
-
-    return patches, target_for_softmax
-
-
-##############################################################################
-# Now we define the usual model module interface.
-
-def prepare_train(*args, **kwargs):
-    X, y = prepare_patch_and_target(*args, **kwargs)
-    return X, y
-
-
-def prepare_valid(*args, **kwargs):
-    m_from, m_to, X, y = prepare_patch_and_target(*args, **kwargs,
-                                                  also_output_mungos=True)
-    return m_from, m_to, X, y
-
-
-def prepare_test(*args, **kwargs):
-    m_from, m_to, X, y = prepare_patch_and_target(*args, **kwargs,
-                                                  also_output_mungos=True)
-    return m_from, m_to, X, y
-
-
-def prepare_runtime(*args, **kwargs):
-    """At runtime, we return the MuNGOs explicitly, so that it is
-    straightforward to pair the prediction result without having
-    to deal with matching the predictions back to the data pool's
-    training entities.
-    """
-    mungos_from, mungos_to, _, _ = args
-    mungo_pairs = zip(mungos_from, mungos_to)
-    X, _ = prepare_patch_and_target(*args, **kwargs)
-    return mungo_pairs, X
-
-
-def train_batch_iterator(batch_size=BATCH_SIZE):
-    """ Compile batch iterator for training """
-    from munglinker.batch_iterators import PoolIterator
-    batch_iterator = PoolIterator(batch_size=batch_size,
-                                  prepare=prepare_train,
-                                  shuffle=True)
-    return batch_iterator
-
-
-def valid_batch_iterator(batch_size=BATCH_SIZE):
-    """ Compile batch iterator for validation """
-    from munglinker.batch_iterators import PoolIterator
-    batch_iterator = PoolIterator(batch_size=batch_size,
-                                  prepare=prepare_valid,
-                                  shuffle=False)
-    return batch_iterator
-
-
-def test_batch_iterator(batch_size=BATCH_SIZE):
-    """ Compile batch iterator for validation """
-    from munglinker.batch_iterators import PoolIterator
-    batch_iterator = PoolIterator(batch_size=batch_size,
-                                  prepare=prepare_test,
-                                  shuffle=False)
-    return batch_iterator
-
-
-def runtime_batch_iterator(batch_size=BATCH_SIZE):
-    """ Compile batch iterator for runtime: discards the outputs """
-    from munglinker.batch_iterators import PoolIterator
-    # Change k_samples to a fixed number to log every k_samples batches. Effectively logs more often.
-    batch_iterator = PoolIterator(batch_size=batch_size,
-                                  prepare=prepare_runtime,
-                                  shuffle=False)
-    return batch_iterator
-
-
-##############################################################################
+    def prepare_runtime(self, *args, **kwargs):
+        mungos_from, mungos_to, _, _ = args
+        mungo_pairs = zip(mungos_from, mungos_to)
+        X, _ = self.prepare_patch_and_target(*args, **kwargs)
+        return mungo_pairs, X
 
 
 if __name__ == '__main__':
     logging.info('Running model onset_counter in test mode.')
-
-    # Init model
-    # ----------
 
     _batch_size = 6
     patch_shape = 3, 256, 512
@@ -239,19 +166,15 @@ if __name__ == '__main__':
     patch_width = 512
     patch_channels = 3
 
-    model = BaseConvnet(n_input_channels=patch_channels,
-                        leaky_relu=False)
+    model = BaseConvnet(n_input_channels=patch_channels, leaky_relu=False)
 
-    # Prepare dummy batch
-    # -------------------
-    from munglinker.utils import generate_munglinker_training_batch
+    from munglinker.utils import generate_munglinker_training_batch, plot_batch_patches
 
     patches, targets = generate_munglinker_training_batch(_batch_size, patch_shape)
 
     print('patches shape: {}'.format(patches.shape))
 
-    X, y = prepare_patch_and_target([], [], patches, targets)
-    from munglinker.utils import plot_batch_patches
+    X, y = model.prepare_patch_and_target([], [], patches, targets)
 
     plot_batch_patches(patches, targets)
 
