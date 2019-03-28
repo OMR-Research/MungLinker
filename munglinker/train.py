@@ -52,16 +52,6 @@ def build_argument_parser():
                              ' preprocessing. See the exp_configs/ subdirectory'
                              ' for examples.')
 
-    # parser.add_argument('--validation_size', type=int, default=20,
-    #                     action='store',
-    #                     help='Number of images to use for validation.'
-    #                          ' If set to 0, will validate on training data.'
-    #                          ' (Useful for tiny datasets.)')
-    # parser.add_argument('--validation_detection_threshold', type=float,
-    #                     default=0.5, action='store',
-    #                     help='Detector threshold for validation runs, '
-    #                          'to record detection scores as well as dice.')
-
     parser.add_argument('-e', '--export', action='store', default="models/default_model.tsd",
                         help='Export the model params into this file.')
 
@@ -144,7 +134,8 @@ def main(args):
         config_file=args.config_file,
         test_only=False,
         no_test=True,
-        train_on_bounding_boxes=args.train_on_bounding_boxes)
+        train_on_bounding_boxes=args.train_on_bounding_boxes,
+    )
     print('Loaded pools; training data has {} entities'
           ''.format(len(data['train'].train_entities)))
 
@@ -152,7 +143,6 @@ def main(args):
     train_batch_iter = model_mod.train_batch_iterator(args.batch_size)
     valid_batch_iter = model_mod.valid_batch_iterator(args.batch_size)
     test_batch_iter = model_mod.test_batch_iterator(args.batch_size)
-    # runtime_batch_iter = model_mod.runtime_batch_iterator()
     batch_iters = {'train': train_batch_iter,
                    'valid': valid_batch_iter,
                    'test': test_batch_iter}
@@ -170,7 +160,7 @@ def main(args):
     checkpoint_export_file = args.export + '.ckpt'
     if os.path.exists(checkpoint_export_file):
         logging.warning('Checkpointing file exists, removing...')
-        os.unlink(checkpoint_export_file)
+        os.remove(checkpoint_export_file)
 
     strategy = PyTorchTrainingStrategy(name=exp_name,
                                        loss_fn_class=loss_fn_cls,

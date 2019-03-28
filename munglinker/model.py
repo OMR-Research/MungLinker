@@ -505,7 +505,8 @@ class PyTorchNetwork(object):
 
             if progress_bar is None:
                 # We create the progress-bar in the first iteration, after iterator-pool has initialized to prevent
-                # multiple nested tqdm-progress bars, which no longer work properly.
+                # multiple nested tqdm-progress bars, which do not work properly. One tqdm-progress-bar will be
+                # triggered inside the iterator, when it first starts
                 progress_bar = tqdm(total=n_batches + 1,
                                      desc="Training epoch {0} (average loss: ?)".format(current_epoch_index))
 
