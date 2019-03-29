@@ -290,7 +290,7 @@ if __name__ == '__main__':
                              for f in input_mung_files]
     else:
         output_mung_files = [args.output_mung]
-        os.makedirs(output_mung_files, exist_ok=True)
+        os.makedirs(args.output_mung, exist_ok=True)
 
     for output_mung_file, output_mung in zip(output_mung_files, output_mungs):
         logging.info('Saving output MuNG to: {}'.format(output_mung_file))
