@@ -75,9 +75,7 @@ class MunglinkerRunner(object):
         :returns: A ``midiutil.MidiFile.MIDIFile`` object.
         """
         data_pool = self.build_data_pool(image, mung)
-        mungo_pairs, output_classes = self.model.predict(data_pool,
-                                                         self.runtime_batch_iterator)
-        logging.info('Prediction: {} positive'.format(output_classes.sum()))
+        mungo_pairs, output_classes = self.model.predict(data_pool, self.runtime_batch_iterator)
 
         # Since the runner only takes one image & MuNG at a time,
         # we have the luxury that all the mung pairs belong to the same
@@ -105,8 +103,7 @@ class MunglinkerRunner(object):
         return notation_graph
 
     def build_data_pool(self, image, mung):
-        data_pool = PairwiseMungoDataPool(mungs=[mung], images=[image],
-                                          **self.data_pool_dict)
+        data_pool = PairwiseMungoDataPool(mungs=[mung], images=[image], **self.data_pool_dict)
         return data_pool
 
     def add_edge_in_graph(self, from_node: CropObject, to_node: CropObject,

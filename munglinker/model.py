@@ -106,26 +106,21 @@ class PyTorchNetwork(object):
 
         # Aggregate results (two-way)
         all_mungo_pairs = []
-        all_np_predictions = None
+        all_np_predicted_classes = []
 
         # Run generator
         for batch_idx, _data_point in enumerate(tqdm(iterator, total=n_batches + 1, desc="Predicting connections")):
-            mungo_pairs, np_inputs = _data_point  # next(generator)
+            mungo_pairs, np_inputs = _data_point
 
             mungo_pairs = list(mungo_pairs)
             all_mungo_pairs.extend(mungo_pairs)
 
             inputs = self.__np2torch(np_inputs)
-            predictions = self.net(inputs)
+            predictions = self.net(inputs).flatten()
             np_predictions = self.__torch2np(predictions)
-            if all_np_predictions is None:
-                all_np_predictions = np_predictions
-            else:
-                all_np_predictions = numpy.concatenate((all_np_predictions, np_predictions))
+            np_predicted_classes = targets2classes(np_predictions)
+            all_np_predicted_classes.extend(np_predicted_classes)
 
-        all_np_predicted_classes = targets2classes(all_np_predictions).flatten()
-        logging.info('Prediction: {} out of {} positive'
-                     ''.format(all_np_predicted_classes.sum(), all_np_predicted_classes.size))
         return all_mungo_pairs, all_np_predicted_classes
 
     def fit(self,
@@ -375,11 +370,8 @@ class PyTorchNetwork(object):
             else:
                 np_inputs, np_targets = validation_batch
 
-            inputs = Variable(torch.from_numpy(np_inputs).float())
-            targets = Variable(torch.from_numpy(np_targets).float())
-            if self.cuda:
-                inputs = inputs.cuda()
-                targets = targets.cuda()
+            inputs = self.__np2torch(np_inputs)
+            targets = self.__np2torch(np_targets)
 
             predictions = self.net(inputs).flatten()
             np_predictions = self.__torch2np(predictions)
