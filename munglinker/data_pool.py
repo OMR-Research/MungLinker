@@ -612,12 +612,12 @@ def load_munglinker_data(mung_root, images_root, split_file,
     :return: ``dict(train=tr_pool, valid=va_pool, test=te_pool, train_tag="")``
     """
     split = load_split(split_file)
+    train_on_bounding_boxes = False
 
     if config_file is not None:
         config = load_config(config_file)
         data_pool_dict = config2data_pool_dict(config)
 
-        train_on_bounding_boxes = False
         if 'TRAIN_ON_BOUNDING_BOXES' in config:
             train_on_bounding_boxes = config['TRAIN_ON_BOUNDING_BOXES']
 
@@ -646,16 +646,14 @@ def load_munglinker_data(mung_root, images_root, split_file,
                                                         include_names=split['train'],
                                                         exclude_classes=exclude_classes,
                                                         masks_to_bounding_boxes=train_on_bounding_boxes)
-        tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images,
-                                        **data_pool_dict)
+        tr_pool = PairwiseMungoDataPool(mungs=tr_mungs, images=tr_images, **data_pool_dict)
 
         print("Loading validation data...")
         va_mungs, va_images = load_munglinker_data_lite(mung_root, images_root,
                                                         include_names=split['valid'],
                                                         exclude_classes=exclude_classes,
                                                         masks_to_bounding_boxes=train_on_bounding_boxes)
-        va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images,
-                                        **validation_data_pool_dict)
+        va_pool = PairwiseMungoDataPool(mungs=va_mungs, images=va_images, **validation_data_pool_dict)
     else:
         tr_pool = None
         va_pool = None
@@ -666,8 +664,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
                                                         include_names=split['test'],
                                                         exclude_classes=exclude_classes,
                                                         masks_to_bounding_boxes=train_on_bounding_boxes)
-        te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images
-                                        **data_pool_dict)
+        te_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images, **data_pool_dict)
     else:
         te_pool = None
 
