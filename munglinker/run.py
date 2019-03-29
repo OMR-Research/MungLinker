@@ -11,6 +11,7 @@ import time
 from typing import Dict
 
 import torch
+from PIL import Image
 from imageio import imread
 from muscima.cropobject import CropObject
 from muscima.graph import NotationGraph, NotationGraphError
@@ -21,6 +22,7 @@ from munglinker.data_pool import PairwiseMungoDataPool, load_config
 from munglinker.model import PyTorchNetwork
 from munglinker.utils import midi_matrix_to_midi
 from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
+import numpy as np
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -262,7 +264,7 @@ if __name__ == '__main__':
 
     output_mungs = []
     for i, (image_file, input_mung_file) in enumerate(zip(image_files, input_mung_files)):
-        img = imread(image_file, pilmode='L')
+        img = np.array(Image.open(image_file).convert('1')).astype('uint8')
 
         input_mungos = parse_cropobject_list(input_mung_file)
         input_mung = NotationGraph(input_mungos)
