@@ -328,7 +328,7 @@ def generate_munglinker_training_batch(batch_size, patch_shape):
 ##############################################################################
 # Target-side utilities
 
-def targets2classes(targets):
+def targets2classes(targets, threshold=0.5):
     """From the two-class softmax outputs, creates a binary vector: 0 for no
     edge, 1 for edge.
 
@@ -342,9 +342,9 @@ def targets2classes(targets):
 
     """
     if targets.ndim == 1:
-        return (targets >= 0.5).astype('uint8')
+        return (targets >= threshold).astype('uint8')
     if targets.ndim == 2 and targets.shape[-1] == 1:
-        return (targets >= 0.5).astype('uint8')
+        return (targets >= threshold).astype('uint8')
     output = np.argmax(targets, axis=1)
     return output
 
