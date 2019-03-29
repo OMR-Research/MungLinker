@@ -16,6 +16,7 @@ from muscima.cropobject import CropObject
 from muscima.graph import NotationGraph, NotationGraphError
 from muscima.io import parse_cropobject_list, export_cropobject_list
 
+from munglinker.batch_iterators import PoolIterator
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
 from munglinker.model import PyTorchNetwork
 from munglinker.utils import midi_matrix_to_midi
@@ -33,7 +34,8 @@ class MunglinkerRunner(object):
     objects, but different edges.
     """
 
-    def __init__(self, model, config, runtime_batch_iterator,
+    def __init__(self, model: PyTorchNetwork, config,
+                 runtime_batch_iterator: PoolIterator,
                  replace_all_edges=True):
         """Initialize the Munglinker runner.
 
@@ -45,7 +47,7 @@ class MunglinkerRunner(object):
         :param config: The configuration that was used to train the given model.
             Contains important things like patch size.
 
-        :param runtime_batch_iterator: The prepared
+        :param runtime_batch_iterator:
 
         """
         self.model = model
@@ -107,7 +109,8 @@ class MunglinkerRunner(object):
                                           **self.data_pool_dict)
         return data_pool
 
-    def add_edge_in_graph(self, from_node: CropObject, to_node: CropObject, id_to_crop_object_mapping: Dict[int, CropObject]):
+    def add_edge_in_graph(self, from_node: CropObject, to_node: CropObject,
+                          id_to_crop_object_mapping: Dict[int, CropObject]):
         """Add an edge between the MuNGOs with objids ``fr --> to``.
             If the edge is already in the graph, warns and does nothing."""
         if from_node not in id_to_crop_object_mapping:

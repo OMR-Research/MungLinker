@@ -109,7 +109,7 @@ class PyTorchNetwork(object):
         all_np_predictions = None
 
         # Run generator
-        for batch_idx, _data_point in enumerate(tqdm(iterator, total=n_batches, desc="Predicting connections")):
+        for batch_idx, _data_point in enumerate(tqdm(iterator, total=n_batches + 1, desc="Predicting connections")):
             mungo_pairs, np_inputs = _data_point  # next(generator)
 
             mungo_pairs = list(mungo_pairs)
