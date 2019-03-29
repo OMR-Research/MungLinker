@@ -8,10 +8,12 @@ import copy
 import logging
 import os
 import time
+from typing import Dict
 
 import torch
 from imageio import imread
-from muscima.graph import NotationGraph
+from muscima.cropobject import CropObject
+from muscima.graph import NotationGraph, NotationGraphError
 from muscima.io import parse_cropobject_list, export_cropobject_list
 
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
@@ -84,25 +86,71 @@ class MunglinkerRunner(object):
                 m.outlinks = []
                 m.inlinks = []
 
-        new_mung = NotationGraph(mungo_copies)
+        notation_graph = NotationGraph(mungo_copies)
+        id_to_crop_object_mapping = {c.objid: c for c in notation_graph.cropobjects}
         for mungo_pair, output_class in zip(mungo_pairs, output_classes):
             has_edge = output_class == 1
             if has_edge:
                 logging.debug('Adding edge: {} --> {}'.format(mungo_pair[0].objid,
                                                               mungo_pair[1].objid))
                 mungo_fr, mungo_to = mungo_pair
-                new_mung.add_edge(mungo_fr.objid, mungo_to.objid)
+                self.add_edge_in_graph(mungo_fr.objid, mungo_to.objid, id_to_crop_object_mapping)
             else:
                 mungo_fr, mungo_to = mungo_pair
-                if new_mung.has_edge(mungo_fr.objid, mungo_to.objid):
-                    new_mung.remove_edge(mungo_fr.objid, mungo_to.objid)
+                if self.graph_has_edge(mungo_fr.objid, mungo_to.objid, id_to_crop_object_mapping):
+                    notation_graph.remove_edge(mungo_fr.objid, mungo_to.objid)
 
-        return new_mung
+        return notation_graph
 
     def build_data_pool(self, image, mung):
         data_pool = PairwiseMungoDataPool(mungs=[mung], images=[image],
                                           **self.data_pool_dict)
         return data_pool
+
+    def add_edge_in_graph(self, from_node: CropObject, to_node: CropObject, id_to_crop_object_mapping: Dict[int, CropObject]):
+        """Add an edge between the MuNGOs with objids ``fr --> to``.
+            If the edge is already in the graph, warns and does nothing."""
+        if from_node not in id_to_crop_object_mapping:
+            raise NotationGraphError('Cannot remove edge from node_id {0}: not in graph!'.format(from_node))
+        if to_node not in id_to_crop_object_mapping:
+            raise NotationGraphError('Cannot remove edge to node_id {0}: not in graph!'.format(to_node))
+
+        if to_node in id_to_crop_object_mapping[from_node].outlinks:
+            if from_node in id_to_crop_object_mapping[to_node].inlinks:
+                logging.info('Adding edge that is alredy in the graph: {} --> {}'
+                             ' -- doing nothing'.format(from_node, to_node))
+                return
+            else:
+                raise NotationGraphError('Found {0} in outlinks of {1}, but not {1} in inlinks of {0}!'
+                                         ''.format(to_node, from_node))
+        elif from_node in id_to_crop_object_mapping[to_node].inlinks:
+            raise NotationGraphError('Found {0} in inlinks of {1}, but not {1} in outlinks of {0}!'
+                                     ''.format(from_node, to_node))
+
+        id_to_crop_object_mapping[from_node].outlinks.append(to_node)
+        id_to_crop_object_mapping[to_node].inlinks.append(from_node)
+
+    def graph_has_edge(self, from_node, to_node, id_to_crop_object_mapping: Dict[int, CropObject]):
+        if from_node not in id_to_crop_object_mapping:
+            logging.warning('Asking for object {}, which is not in graph.'
+                            ''.format(from_node))
+        if to_node not in id_to_crop_object_mapping:
+            logging.warning('Asking for object {}, which is not in graph.'
+                            ''.format(to_node))
+
+        if to_node in id_to_crop_object_mapping[from_node].outlinks:
+            if from_node in id_to_crop_object_mapping[to_node].inlinks:
+                return True
+            else:
+                raise NotationGraphError('graph_has_edge({}, {}): found {} in outlinks'
+                                         ' of {}, but not {} in inlinks of {}!'
+                                         ''.format(from_node, to_node, to_node, from_node, from_node, to_node))
+        elif from_node in id_to_crop_object_mapping[to_node].inlinks:
+            raise NotationGraphError('graph_has_edge({}, {}): found {} in inlinks'
+                                     ' of {}, but not {} in outlinks of {}!'
+                                     ''.format(from_node, to_node, from_node, to_node, to_node, from_node))
+        else:
+            return False
 
     def model_output_to_midi(self, output_repr):
         return midi_matrix_to_midi(output_repr)
@@ -242,11 +290,12 @@ if __name__ == '__main__':
                              for f in input_mung_files]
     else:
         output_mung_files = [args.output_mung]
+        os.makedirs(output_mung_files, exist_ok=True)
 
     for output_mung_file, output_mung in zip(output_mung_files, output_mungs):
         logging.info('Saving output MuNG to: {}'.format(output_mung_file))
-        with open(output_mung_file, 'w') as hdl:
-            hdl.write(export_cropobject_list(output_mung.cropobjects))
+        with open(output_mung_file, 'w') as file:
+            file.write(export_cropobject_list(output_mung.cropobjects))
 
-    _end_time = time.time()
-    logging.info('run.py done in {0:.3f} s'.format(_end_time - start_time))
+    end_time = time.time()
+    logging.info('run.py done in {0:.3f} s'.format(end_time - start_time))
