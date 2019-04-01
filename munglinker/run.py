@@ -77,7 +77,7 @@ class MunglinkerRunner(object):
         :returns: A ``midiutil.MidiFile.MIDIFile`` object.
         """
         data_pool = self.build_data_pool(image, mung)
-        mungo_pairs, output_classes = self.model.predict(data_pool, self.runtime_batch_iterator)
+        mungos_from, mungos_to, output_classes = self.model.predict(data_pool, self.runtime_batch_iterator)
 
         # Since the runner only takes one image & MuNG at a time,
         # we have the luxury that all the mung pairs belong to the same
@@ -90,17 +90,15 @@ class MunglinkerRunner(object):
 
         notation_graph = NotationGraph(mungo_copies)
         id_to_crop_object_mapping = {c.objid: c for c in notation_graph.cropobjects}
-        for mungo_pair, output_class in zip(mungo_pairs, output_classes):
+        for mungo_from, mungo_to, output_class in zip(mungos_from, mungos_to, output_classes):
             has_edge = output_class == 1
             if has_edge:
-                logging.debug('Adding edge: {} --> {}'.format(mungo_pair[0].objid,
-                                                              mungo_pair[1].objid))
-                mungo_fr, mungo_to = mungo_pair
-                self.add_edge_in_graph(mungo_fr.objid, mungo_to.objid, id_to_crop_object_mapping)
+                logging.debug('Adding edge: {} --> {}'.format(mungo_from.objid,
+                                                              mungo_to.objid))
+                self.add_edge_in_graph(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping)
             else:
-                mungo_fr, mungo_to = mungo_pair
-                if self.graph_has_edge(mungo_fr.objid, mungo_to.objid, id_to_crop_object_mapping):
-                    notation_graph.remove_edge(mungo_fr.objid, mungo_to.objid)
+                if self.graph_has_edge(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping):
+                    notation_graph.remove_edge(mungo_from.objid, mungo_to.objid)
 
         return notation_graph
 

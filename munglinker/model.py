@@ -6,11 +6,12 @@ import logging
 import os
 import pprint
 from math import ceil
-from typing import Dict
+from typing import Dict, List, Tuple
 
 import numpy
 import numpy.random
 import torch
+from muscima.cropobject import CropObject
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 from torch.autograd import Variable
@@ -78,7 +79,7 @@ class PyTorchNetwork(object):
         if self.training_strategy.best_params_file is None:
             raise Exception('No file to save the best model is specified in training strategy!')
 
-    def predict(self, data_pool, runtime_batch_iterator):
+    def predict(self, data_pool, runtime_batch_iterator) -> Tuple[List[CropObject], List[CropObject], List[int]]:
         """Runs the model prediction. Expects a data pool and a runtime
         batch iterator.
 
@@ -100,14 +101,15 @@ class PyTorchNetwork(object):
         number_of_batches = ceil(len(data_pool) / runtime_batch_iterator.batch_size)
         print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches))
 
-        all_mungo_pairs = []
+        all_mungos_from = []
+        all_mungos_to = []
         all_np_predicted_classes = []
 
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Predicting connections")):
-            mungo_pairs, np_inputs = data_batch
-            mungo_pairs = list(mungo_pairs)
-            all_mungo_pairs.extend(mungo_pairs)
+            mungos_from, mungos_to, np_inputs = data_batch
+            all_mungos_from.extend(mungos_from)
+            all_mungos_to.extend(mungos_to)
 
             inputs = self.__np2torch(np_inputs)
             predictions = self.net(inputs).flatten()
@@ -115,7 +117,7 @@ class PyTorchNetwork(object):
             np_predicted_classes = targets2classes(np_predictions)
             all_np_predicted_classes.extend(np_predicted_classes)
 
-        return all_mungo_pairs, all_np_predicted_classes
+        return all_mungos_from, all_mungos_to, all_np_predicted_classes
 
     def fit(self,
             data,

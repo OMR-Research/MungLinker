@@ -106,8 +106,7 @@ class BaseConvnet(MungLinkerNetwork):
                                  mungos_to: List[CropObject],
                                  patches: np.ndarray,
                                  targets: np.ndarray,
-                                 target_is_onehot: bool = False,
-                                 also_output_mungos: bool = False):
+                                 target_is_onehot: bool = False):
         """Does not do anything to patches.
 
         :param mungos_from: list of CropObjects corresponding to the FROM-half
@@ -133,28 +132,23 @@ class BaseConvnet(MungLinkerNetwork):
         else:
             target_for_softmax = targets
 
-        if also_output_mungos:
-            return mungos_from, mungos_to, patches, target_for_softmax
-
-        return patches, target_for_softmax
+        return mungos_from, mungos_to, patches, target_for_softmax
 
     def prepare_train(self, *args, **kwargs):
-        X, y = self.prepare_patch_and_target(*args, **kwargs)
+        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
         return X, y
 
     def prepare_valid(self, *args, **kwargs):
-        m_from, m_to, X, y = self.prepare_patch_and_target(*args, **kwargs, also_output_mungos=True)
-        return m_from, m_to, X, y
+        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
+        return mungos_from, mungos_to, X, y
 
     def prepare_test(self, *args, **kwargs):
-        m_from, m_to, X, y = self.prepare_patch_and_target(*args, **kwargs, also_output_mungos=True)
-        return m_from, m_to, X, y
+        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
+        return mungos_from, mungos_to, X, y
 
     def prepare_runtime(self, *args, **kwargs):
-        mungos_from, mungos_to, _, _ = args
-        mungo_pairs = zip(mungos_from, mungos_to)
-        X, _ = self.prepare_patch_and_target(*args, **kwargs)
-        return mungo_pairs, X
+        mungos_from, mungos_to, X, _ = self.prepare_patch_and_target(*args, **kwargs)
+        return mungos_from, mungos_to, X
 
 
 if __name__ == '__main__':
