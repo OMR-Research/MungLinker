@@ -8,6 +8,7 @@ import logging
 import os
 import random
 import time
+from glob import glob
 from typing import List
 
 import numpy as np
@@ -492,6 +493,21 @@ def load_config(config_file):
     return config
 
 
+def __load_mung(filename, exclude_classes):
+    mungos = parse_cropobject_list(filename)
+    mung = NotationGraph(mungos)
+    objects_to_exclude = [m for m in mungos if m.clsname in exclude_classes]
+    for m in objects_to_exclude:
+        mung.remove_vertex(m.objid)
+    return mung
+
+
+def __load_image(filename):
+    import PIL.Image
+    image = np.array(PIL.Image.open(filename).convert('1')).astype('uint8')
+    return image
+
+
 def load_munglinker_data_lite(mung_root, images_root,
                               include_names=None,
                               max_items=None, exclude_classes=None,
@@ -526,44 +542,20 @@ def load_munglinker_data_lite(mung_root, images_root,
     if exclude_classes is None:
         exclude_classes = {}
 
-    def __load_mung(filename, exclude_classes=exclude_classes):
-        mungos = parse_cropobject_list(filename)
-        mung = NotationGraph(mungos)
-        objects_to_exclude = [m for m in mungos if m.clsname in exclude_classes]
-        for m in objects_to_exclude:
-            mung.remove_vertex(m.objid)
-        return mung
+    all_mung_files = glob(mung_root + "/**/*.xml", recursive=True)
+    mung_files_in_this_split = [f for f in all_mung_files if os.path.splitext(os.path.basename(f))[0] in include_names]
 
-    def __load_image(filename):
-        import PIL.Image
-        image = np.array(PIL.Image.open(filename).convert('1')).astype('uint8')
-        return image
-
-    mung_files = [os.path.join(mung_root, f) for f in sorted(os.listdir(mung_root))
-                  if f.endswith('xml')]
-    mung_ids = [os.path.splitext(os.path.basename(f))[0] for f in mung_files]
-    if include_names is not None:
-        mung_ids = [_id for _id in mung_ids if _id in include_names]
-
-    image_files = [os.path.join(images_root, f) for f in sorted(os.listdir(images_root))
-                   if f.endswith('png')]
-    image_ids = [os.path.splitext(os.path.basename(f))[0] for f in image_files]
-    if include_names is not None:
-        image_ids = [_id for _id in image_ids if _id in include_names]
-
-    mung_idxs = [idx for idx, item_id in enumerate(mung_ids) if item_id in image_ids]
-    image_idxs = [idx for idx, item_id in enumerate(image_ids) if item_id in mung_ids]
+    all_image_files = glob(images_root + "/**/*.png", recursive=True)
+    image_files_in_this_split = [f for f in all_image_files if os.path.splitext(os.path.basename(f))[0] in include_names]
 
     mungs = []
     images = []
-    for mung_idx, image_idx in tqdm(zip(mung_idxs, image_idxs),
+    for mung_file, image_file in tqdm(zip(mung_files_in_this_split, image_files_in_this_split),
                                     desc="Loading mung/image pairs from disk",
-                                    total=len(mung_idxs)):
-        mung_file = mung_files[mung_idx]
-        mung = __load_mung(mung_file)
+                                    total=len(mung_files_in_this_split)):
+        mung = __load_mung(mung_file, exclude_classes)
         mungs.append(mung)
 
-        image_file = image_files[image_idx]
         image = __load_image(image_file)
         images.append(image)
 
