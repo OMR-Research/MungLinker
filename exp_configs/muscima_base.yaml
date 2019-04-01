@@ -6,7 +6,7 @@ TRAIN_ON_BOUNDING_BOXES: FALSE
 THRESHOLD_NEGATIVE_DISTANCE: 200
 
 # Restriction to avoid imbalanced dataset of having 10 negatives for 1 positive example
-MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
+MAX_NEGATIVE_EXAMPLES_PER_OBJECT: -1
 
 # Resampling applies only to the training pool, not the validation pool. 1 = True, 0 = False
 # Randomly select a different example each epoch
