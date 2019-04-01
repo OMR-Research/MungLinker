@@ -605,9 +605,7 @@ def config2data_pool_dict(config):
         'max_negative_samples': config['MAX_NEGATIVE_EXAMPLES_PER_OBJECT'],
         'resample_train_entities': config['RESAMPLE_EACH_EPOCH'],
         'patch_size': (config['PATCH_HEIGHT'], config['PATCH_WIDTH']),
-        'zoom': config['IMAGE_ZOOM'],
-        'max_patch_displacement': config['MAX_PATCH_DISPLACEMENT'],
-        'balance_samples': False
+        'zoom': config['IMAGE_ZOOM']
     }
 
     if 'PATCH_NO_IMAGE' in config:

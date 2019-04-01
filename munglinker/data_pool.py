@@ -15,6 +15,7 @@ import numpy as np
 import yaml
 from PIL import Image
 from muscima.cropobject import cropobject_distance, bbox_intersection, CropObject
+from muscima.grammar import DependencyGrammar
 from muscima.graph import NotationGraph
 from muscima.inference_engine_constants import _CONST
 from muscima.io import parse_cropobject_list
@@ -178,12 +179,10 @@ class PairwiseMungoDataPool(object):
                  max_edge_length=THRESHOLD_NEGATIVE_DISTANCE,
                  max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
                  resample_train_entities=False,
-                 grammar=None,
+                 grammar: DependencyGrammar = None,
                  patch_size=(PATCH_HEIGHT, PATCH_WIDTH),
                  patch_no_image=PATCH_NO_IMAGE,
-                 zoom=IMAGE_ZOOM,
-                 max_patch_displacement=MAX_PATCH_DISPLACEMENT,
-                 balance_samples=False):
+                 zoom: float = IMAGE_ZOOM):
         """Initialize the data pool.
 
         :param mungs: The NotationGraph objects for each document
@@ -218,13 +217,6 @@ class PairwiseMungoDataPool(object):
             the image will be downscaled to half the height & width
             before the patch is extracted.
 
-        :param max_patch_displacement: The patch center will be uniformly
-            sampled from up to this many pixels (both vertically and
-            horizontally) away from the true center point between
-            the mungos pair.
-
-        :param balance_samples: If set, will only keep as many random
-            negative samples as there are positive samples. [NOT IMPLEMENTED]
         """
         self.mungs = mungs
         self.images = images
@@ -240,8 +232,9 @@ class PairwiseMungoDataPool(object):
         self.patch_no_image = patch_no_image
 
         self.zoom = zoom
-        self.__zoom_images()
-        self.__zoom_mungs()
+        if self.zoom != 1.0:
+            self.__zoom_images()
+            self.__zoom_mungs()
 
         self.grammar = grammar
 
@@ -629,9 +622,7 @@ def load_munglinker_data(mung_root, images_root, split_file,
             'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
             'resample_train_entities': RESAMPLE_EACH_EPOCH,
             'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
-            'zoom': IMAGE_ZOOM,
-            'max_patch_displacement': MAX_PATCH_DISPLACEMENT,
-            'balance_samples': False
+            'zoom': IMAGE_ZOOM
         }
         validation_data_pool_dict = copy.deepcopy(data_pool_dict)
         validation_data_pool_dict['resample_train_entities'] = False
