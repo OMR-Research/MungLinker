@@ -94,24 +94,17 @@ class PyTorchNetwork(object):
             method, you will have to take care of actually adding the predicted
             edges into the graphs -- split the MuNG pairs by documents, etc.
         """
-        # Ensure correct data pool behavior.
         data_pool.resample_train_entities = False
-
-        # Initialize data feeding from iterator
         iterator = runtime_batch_iterator(data_pool)
+        number_of_batches = len(data_pool) // runtime_batch_iterator.batch_size
+        print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches))
 
-        n_batches = len(data_pool) // runtime_batch_iterator.batch_size
-        print('n. of runtime entities: {}; batches: {}'
-              ''.format(len(data_pool), n_batches))
-
-        # Aggregate results (two-way)
         all_mungo_pairs = []
         all_np_predicted_classes = []
 
-        # Run generator
-        for batch_idx, _data_point in enumerate(tqdm(iterator, total=n_batches + 1, desc="Predicting connections")):
-            mungo_pairs, np_inputs = _data_point
-
+        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches + 1,
+                                                              desc="Predicting connections")):
+            mungo_pairs, np_inputs = data_batch
             mungo_pairs = list(mungo_pairs)
             all_mungo_pairs.extend(mungo_pairs)
 
@@ -229,9 +222,7 @@ class PyTorchNetwork(object):
                 #########################################################
                 # This only happens once per n_epochs_per_checkpoint
                 if current_epoch_index % self.training_strategy.n_epochs_per_checkpoint == 0:
-                    validation_epoch_output = self.__validate_epoch(data['valid'],
-                                                                    batch_iters['valid'],
-                                                                    loss_fn, self.training_strategy,
+                    validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'], loss_fn,
                                                                     current_epoch_index)
                     validation_results.append(validation_epoch_output)
 
@@ -297,7 +288,7 @@ class PyTorchNetwork(object):
                         print('Final validation:\n')
 
                         validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'], loss_fn,
-                                                                        self.training_strategy, current_epoch_index)
+                                                                        current_epoch_index)
                         validation_results.append(validation_epoch_output)
 
                         self.__log_epoch_to_tensorboard(current_epoch_index,
@@ -343,13 +334,10 @@ class PyTorchNetwork(object):
                 value_for_negative_class, value_for_positive_class = value[0], value[1]
                 self.tensorboard.add_scalar('validation/{0}'.format(key), value_for_positive_class, epoch_index)
 
-    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, training_strategy,
-                         current_epoch_index: int):
+    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, current_epoch_index: int):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
-        validation_generator = generator_from_iterator(iterator)
-
         number_of_batches = len(data_pool) // validation_batch_iterator.batch_size
 
         validation_mungos_from = []
@@ -359,16 +347,15 @@ class PyTorchNetwork(object):
         validation_results = collections.OrderedDict()
         losses = []
 
-        for current_batch_index in tqdm(range(number_of_batches),
-                                        desc="Validating epoch {0}".format(current_epoch_index)):
+        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches + 1,
+                                                              desc="Validating epoch {0}".format(current_epoch_index))):
             # Validation iterator might also output the MuNGOs,
             # for improved evaluation options.
-            validation_batch = next(validation_generator)
             mungos_from, mungos_to = None, None
-            if len(validation_batch) == 4:
-                mungos_from, mungos_to, np_inputs, np_targets = validation_batch
+            if len(data_batch) == 4:
+                mungos_from, mungos_to, np_inputs, np_targets = data_batch
             else:
-                np_inputs, np_targets = validation_batch
+                np_inputs, np_targets = data_batch
 
             inputs = self.__np2torch(np_inputs)
             targets = self.__np2torch(np_targets)
