@@ -1,6 +1,3 @@
-"""This file defines the pytorch fit() wrapper."""
-from __future__ import print_function, unicode_literals, division
-
 import collections
 import logging
 import os
@@ -383,12 +380,6 @@ class PyTorchNetwork(object):
             if mungos_from is not None:
                 validation_mungos_from.extend(mungos_from)
                 validation_mungos_to.extend(mungos_to)
-
-            # Log sample outputs. Used mostly for sanity/debugging.
-            _first_n_batch_results_to_print = 3
-            if current_batch_index < _first_n_batch_results_to_print:
-                logging.info('\t{}: Targets: {}'.format(current_batch_index, np_targets[:10]))
-                logging.info('\t{}: Outputs: {}'.format(current_batch_index, np_predictions[:10]))
 
         # Compute evaluation metrics aggregated over validation set.
         aggregated_metrics = self.__evaluate_classification(validation_predicted_classes,
