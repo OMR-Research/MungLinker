@@ -18,7 +18,7 @@ RESTRICT_TO_GRAMMAR: ../resources/mff-muscima-mlclasses-annot.deprules
 # At validation time, we should test against the runtime
 # situation, where we will classify every pair within
 # THRESHOLD_NEGATIVE_DISTANCE
-VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 10
+VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT: -1
 
 # The size of the image patches that are output
 PATCH_HEIGHT: 256

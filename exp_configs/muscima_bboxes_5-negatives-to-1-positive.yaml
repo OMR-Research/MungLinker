@@ -1,13 +1,15 @@
 # This configuration is for training a system that cen then work
 # with R-CNN detection outputs.
-TRAIN_ON_BOUNDING_BOXES: FALSE
+TRAIN_ON_BOUNDING_BOXES: TRUE
 
 # Data point sampling parameters
 THRESHOLD_NEGATIVE_DISTANCE: 200
 
-MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 1
+# Restriction to avoid imbalanced dataset of having 10 negatives for 1 positive example
+MAX_NEGATIVE_EXAMPLES_PER_OBJECT: 5
 
-# Resampling applies only to the training pool, not the validation pool. 1 = True, 0 = False
+# Resampling applies only to the training pool, not the validation pool.
+# Randomly select a different example each epoch
 RESAMPLE_EACH_EPOCH: TRUE
 
 # Restricting negative samples only to pairs permissible by a given muscima grammar
@@ -21,10 +23,6 @@ VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT: -1
 # The size of the image patches that are output
 PATCH_HEIGHT: 256
 PATCH_WIDTH: 512
-
-# If this is set, the image in the patch will be masked to 0,
-# so the system will only have the from/to masks to work with.
-PATCH_NO_IMAGE: 1
 
 # The rescaling factor that is applied before the patch is extracted
 # (In effect, setting this to 0.5 downscales by a factor of 2, so
