@@ -62,7 +62,7 @@ def build_argument_parser():
     parser.add_argument('--no_early_stopping', action='store_true',
                         help='Do not apply early-stopping, run until --n_epochs'
                              ' are exhausted.')
-    parser.add_argument('--patience', type=int, default=20,
+    parser.add_argument('--patience', type=int, default=10,
                         help='Number of steps without improvement in validation'
                              ' loss after which the learning rate is attenuated.')
 
