@@ -124,8 +124,12 @@ def main(args):
             if reference_to_prediction_mapping[out_r_edge] not in predicted_object.outlinks:
                 false_negatives += 1
 
-    print('F1-Score: {0:.3f}'.format((2. * true_positives) / (2. * true_positives + false_positives + false_negatives)))
-    print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives, false_positives, false_negatives))
+    precision = true_positives / (true_positives + false_positives)
+    recall = true_positives / (true_positives + false_negatives)
+    f1_score = (2. * true_positives) / (2. * true_positives + false_positives + false_negatives)
+    print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))
+    print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives, false_positives,
+                                                                                   false_negatives))
 
 
 if __name__ == '__main__':
