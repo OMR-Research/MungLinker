@@ -110,8 +110,9 @@ def main(args):
         images_root=args.image_root,
         split_file=args.split_file,
         config_file=args.config_file,
-        test_only=False,
-        no_test=True,
+        load_training_data=True,
+        load_validation_data=True,
+        load_test_data=False
     )
     print('Loaded pools; training data has {} entities'.format(len(data['train'].train_entities)))
 

@@ -13,7 +13,7 @@ class MockNetwork(MungLinkerNetwork):
     """
 
     def prepare_patch_and_target(self, mungos_from: List[CropObject], mungos_to: List[CropObject], patches: np.ndarray,
-                                 targets: np.ndarray, target_is_onehot: bool = False, also_output_mungos: bool = False):
+                                 targets: np.ndarray, target_is_onehot: bool = False):
         pass
 
     def prepare_train(self, *args, **kwargs):

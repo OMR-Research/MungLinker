@@ -147,7 +147,7 @@ class BaseConvnet(MungLinkerNetwork):
         return mungos_from, mungos_to, X, y
 
     def prepare_runtime(self, *args, **kwargs):
-        mungos_from, mungos_to, X, _ = self.prepare_patch_and_target(*args, **kwargs)
+        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
         return mungos_from, mungos_to, X
 
 

@@ -15,11 +15,6 @@ class MungLinkerNetwork(nn.Module):
         self.batch_size = batch_size
 
     @abstractmethod
-    def prepare_patch_and_target(self, mungos_from: List[CropObject], mungos_to: List[CropObject], patches: np.ndarray,
-                                 targets: np.ndarray, target_is_onehot: bool = False, also_output_mungos: bool = False):
-        pass
-
-    @abstractmethod
     def prepare_train(self, *args, **kwargs):
         pass
 

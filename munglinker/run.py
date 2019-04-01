@@ -72,11 +72,8 @@ class MunglinkerRunner(object):
         self.replace_all_edges = replace_all_edges
 
     def run(self, image, mung: NotationGraph) -> NotationGraph:
-        """Processes the image and outputs MIDI.
 
-        :returns: A ``midiutil.MidiFile.MIDIFile`` object.
-        """
-        data_pool = self.build_data_pool(image, mung)
+        data_pool = PairwiseMungoDataPool(mungs=[mung], images=[image], **self.data_pool_dict)
         mungos_from, mungos_to, output_classes = self.model.predict(data_pool, self.runtime_batch_iterator)
 
         # Since the runner only takes one image & MuNG at a time,
@@ -101,10 +98,6 @@ class MunglinkerRunner(object):
                     notation_graph.remove_edge(mungo_from.objid, mungo_to.objid)
 
         return notation_graph
-
-    def build_data_pool(self, image, mung):
-        data_pool = PairwiseMungoDataPool(mungs=[mung], images=[image], **self.data_pool_dict)
-        return data_pool
 
     def add_edge_in_graph(self, from_node: CropObject, to_node: CropObject,
                           id_to_crop_object_mapping: Dict[int, CropObject]):
