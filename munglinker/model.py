@@ -5,6 +5,7 @@ import collections
 import logging
 import os
 import pprint
+from math import ceil
 from typing import Dict
 
 import numpy
@@ -96,13 +97,13 @@ class PyTorchNetwork(object):
         """
         data_pool.resample_train_entities = False
         iterator = runtime_batch_iterator(data_pool)
-        number_of_batches = len(data_pool) // runtime_batch_iterator.batch_size
+        number_of_batches = ceil(len(data_pool) / runtime_batch_iterator.batch_size)
         print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches))
 
         all_mungo_pairs = []
         all_np_predicted_classes = []
 
-        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches + 1,
+        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Predicting connections")):
             mungo_pairs, np_inputs = data_batch
             mungo_pairs = list(mungo_pairs)
@@ -338,7 +339,7 @@ class PyTorchNetwork(object):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
-        number_of_batches = len(data_pool) // validation_batch_iterator.batch_size
+        number_of_batches = ceil(len(data_pool) / validation_batch_iterator.batch_size)
 
         validation_mungos_from = []
         validation_mungos_to = []
@@ -347,7 +348,7 @@ class PyTorchNetwork(object):
         validation_results = collections.OrderedDict()
         losses = []
 
-        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches + 1,
+        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Validating epoch {0}".format(current_epoch_index))):
             # Validation iterator might also output the MuNGOs,
             # for improved evaluation options.
@@ -478,7 +479,7 @@ class PyTorchNetwork(object):
         # Initialize data feeding from iterator
         iterator = training_batch_iterator(data_pool)
 
-        n_batches = len(data_pool) // training_batch_iterator.batch_size
+        number_of_batches = ceil(len(data_pool) / training_batch_iterator.batch_size)
 
         # Monitors
         batch_train_losses = []
@@ -492,7 +493,7 @@ class PyTorchNetwork(object):
                 # We create the progress-bar in the first iteration, after iterator-pool has initialized to prevent
                 # multiple nested tqdm-progress bars, which do not work properly. One tqdm-progress-bar will be
                 # triggered inside the iterator, when it first starts
-                progress_bar = tqdm(total=n_batches + 1,
+                progress_bar = tqdm(total=number_of_batches,
                                     desc="Training epoch {0} (average loss: ?)".format(current_epoch_index))
 
             np_inputs, np_targets = data_point
