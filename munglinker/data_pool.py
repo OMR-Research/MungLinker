@@ -164,7 +164,7 @@ class PairwiseMungoDataPool(object):
             m_from, m_to = self._mungo_pair_map[i_mungo_pair]
             mungos_from.append(m_from)
             mungos_to.append(m_to)
-            patch = self.prepare_train_patch(i_image, m_from, m_to)
+            patch = self.load_patch(i_image, m_from, m_to)
             patches_batch[i_entity] = patch
 
             if m_to.objid in m_from.outlinks:
@@ -232,7 +232,7 @@ class PairwiseMungoDataPool(object):
                 # Try extracting a target patch. If this fails, don't add
                 # the entity.
                 try:
-                    self.prepare_train_patch(i_doc, m_from, m_to)
+                    self.load_patch(i_doc, m_from, m_to)
                 except MunglinkerDataError:
                     logging.info('Object pair {} --> {} does not fit within patch; skipped.'
                                  ''.format(m_from.uid, m_to.uid))
@@ -245,9 +245,9 @@ class PairwiseMungoDataPool(object):
         # n_items x n_outputs x
         self.shape = [len(self.train_entities)]
 
-    def prepare_train_patch(self, i_image, m_from, m_to):
+    def load_patch(self, i_image, mungo_from, mungo_to):
         image = self.images[i_image]
-        patch = self.get_x_patch(image, m_from, m_to)
+        patch = self.get_x_patch(image, mungo_from, mungo_to)
         return patch
 
     def get_x_patch(self, image, mungo_from, mungo_to):
