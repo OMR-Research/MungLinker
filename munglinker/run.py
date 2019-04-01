@@ -67,11 +67,23 @@ class MunglinkerRunner(object):
                             ' a long time, since all possible object pairs'
                             ' will be tried. (This is fine if you trained without'
                             ' the grammar restriction, obviously.)')
-        self.data_pool_dict = data_pool_dict
+        if 'TRAIN_ON_BOUNDING_BOXES' in self.config:
+            self.masks_to_bounding_boxes = self.config['TRAIN_ON_BOUNDING_BOXES']
 
+        self.data_pool_dict = data_pool_dict
         self.replace_all_edges = replace_all_edges
 
-    def run(self, image, mung: NotationGraph) -> NotationGraph:
+    def run(self, image_file, mung: NotationGraph) -> NotationGraph:
+        image = np.array(Image.open(image_file).convert('1')).astype('uint8')
+
+        # This is for training on bounding boxes,
+        # which needs to be done in order to then process
+        # R-CNN detection outputs with Munglinker trained on ground truth
+        if self.masks_to_bounding_boxes:
+            for mungo in mung.cropobjects:
+                t, l, b, r = mungo.bounding_box
+                image_mask = image[t:b, l:r]
+                mungo.set_mask(image_mask)
 
         data_pool = PairwiseMungoDataPool(mungs=[mung], images=[image], **self.data_pool_dict)
         mungos_from, mungos_to, output_classes = self.model.predict(data_pool, self.runtime_batch_iterator)
@@ -255,13 +267,11 @@ if __name__ == '__main__':
 
     output_mungs = []
     for i, (image_file, input_mung_file) in enumerate(zip(image_files, input_mung_files)):
-        img = np.array(Image.open(image_file).convert('1')).astype('uint8')
-
         input_mungos = parse_cropobject_list(input_mung_file)
         input_mung = NotationGraph(input_mungos)
 
         logging.info('Running Munglinker: {} / {}'.format(i, len(image_files)))
-        output_mung = runner.run(img, input_mung)
+        output_mung = runner.run(image_file, input_mung)
         output_mungs.append(output_mung)
 
     if args.visualize:
