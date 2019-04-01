@@ -58,105 +58,6 @@ MAX_PATCH_DISPLACEMENT = 0
 distances_cache_per_file = {}
 
 
-def get_closest_objects(cropobjects: List[CropObject], threshold=100):
-    """For each pair of cropobjects, compute the closest distance between their
-    bounding boxes.
-
-    :returns: A dict of dicts, indexed by objid, then objid, then distance.
-    """
-    document = cropobjects[0].doc
-    if document in distances_cache_per_file:
-        return distances_cache_per_file[document]
-
-    close_objects = {}
-    for c in cropobjects:
-        close_objects[c] = []
-
-    for c in cropobjects:
-        for d in cropobjects:
-            distance = cropobject_distance(c, d)
-            if distance < threshold:
-                close_objects[c].append(d)
-                close_objects[d].append(c)
-
-    # Remove duplicates from lists
-    for key, neighbors in close_objects.items():
-        unique_neighbors = list(dict.fromkeys(neighbors))
-        close_objects[key] = unique_neighbors
-
-    distances_cache_per_file[document] = close_objects
-    return close_objects
-
-
-def negative_example_pairs(cropobjects,
-                           threshold=THRESHOLD_NEGATIVE_DISTANCE,
-                           max_per_object=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
-                           grammar=None):
-    """Samples pairs of cropobjects that are *not* connected by an edge.
-
-    :param cropobjects: A list of MuNG objects available for pair sampling.
-
-    :param threshold: Maximum distance for a pair of MuNGos to be considered.
-
-    :param max_per_object: At most this many negative samples will be output
-        per object.
-
-    :param grammar: If given, will only add negative pairs such that an edge
-        between them would be permitted by the grammar.
-
-    :return: A list of tuples of (from, to) MuNG objects that are *not* linked.
-    """
-    close_neighbors = get_closest_objects(cropobjects, threshold)
-
-    # Exclude linked ones
-    negative_example_pairs_dict = {}
-    for c in close_neighbors:
-        negative_example_pairs_dict[c] = [d for d in close_neighbors[c] if d.objid not in c.outlinks]
-
-        # Filter with grammar.
-        if grammar is not None:
-            negative_example_pairs_dict[c] = [d for d in negative_example_pairs_dict[c]
-                                              if grammar.validate_edge(c.clsname, d.clsname)]
-
-    # Downsample,
-    # -----------
-    # but intelligently: there should be more weight on closer objects, as they should
-    # be represented more (should they?) [NOT IMPLEMENTED].
-    if (max_per_object is not None) and (max_per_object > 0):
-        for c in close_neighbors:
-            random.shuffle(negative_example_pairs_dict[c])
-            negative_example_pairs_dict[c] = negative_example_pairs_dict[c][:max_per_object]
-
-    negative_examples = []
-    for c in negative_example_pairs_dict:
-        negative_examples.extend([(c, d) for d in negative_example_pairs_dict[c]])
-
-    return negative_examples
-
-
-def positive_example_pairs(cropobjects):
-    _cdict = {c.objid: c for c in cropobjects}
-    positive_example_pairs = []
-    for c in cropobjects:
-        for o in c.outlinks:
-            positive_example_pairs.append((c, _cdict[o]))
-    return positive_example_pairs
-
-
-def get_object_pairs(cropobjects,
-                     max_object_distance=THRESHOLD_NEGATIVE_DISTANCE,
-                     max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
-                     grammar=None):
-    negative_pairs = negative_example_pairs(cropobjects,
-                                            threshold=max_object_distance,
-                                            max_per_object=max_negative_samples,
-                                            grammar=grammar)
-    positive_pairs = positive_example_pairs(cropobjects)
-    logging.info('Object pair extraction: positive: {}, negative: {}'
-                 ''.format(len(positive_pairs), len(negative_pairs)))
-    return negative_pairs + positive_pairs
-
-
 ##############################################################################
 
 class MunglinkerDataError(ValueError):
@@ -298,18 +199,17 @@ class PairwiseMungoDataPool(object):
     def reset_batch_generator(self, ignore_resample=False):
         """Reset data pool with new random reordering of ``train_entities``.
         """
-        # Resampling negative samples every epoch should be implemented here.
         if self.resample_train_entities and not ignore_resample:
             logging.info('Resampling data pool.')
             self.prepare_train_entities()
 
-        # Shuffling the train entities shuffles the order of indices
-        # into self._mungo_pair_map that contains the actual MuNGOs,
-        # and at the same time preserves the pairing of the MuNGo pairs
-        # to the respective images.
-        permutation = [int(i) for i in np.random.permutation(len(self.train_entities))]
-        shuffled_train_entities = [self.train_entities[idx] for idx in permutation]
-        self.train_entities = shuffled_train_entities
+            # Shuffling the train entities shuffles the order of indices
+            # into self._mungo_pair_map that contains the actual MuNGOs,
+            # and at the same time preserves the pairing of the MuNGo pairs
+            # to the respective images.
+            permutation = [int(i) for i in np.random.permutation(len(self.train_entities))]
+            shuffled_train_entities = [self.train_entities[idx] for idx in permutation]
+            self.train_entities = shuffled_train_entities
 
     def prepare_train_entities(self):
         """Extract the triplets.
@@ -323,7 +223,7 @@ class PairwiseMungoDataPool(object):
         self._mungo_pair_map = []
         n_entities = 0
         for i_doc, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs")):
-            object_pairs = get_object_pairs(
+            object_pairs = PairwiseMungoDataPool.get_object_pairs(
                 mung.cropobjects,
                 max_object_distance=self.max_edge_length,
                 max_negative_samples=self.max_negative_samples,
@@ -433,6 +333,107 @@ class PairwiseMungoDataPool(object):
             raise
 
         return output
+
+
+    @staticmethod
+    def get_closest_objects(cropobjects: List[CropObject], threshold=100):
+        """For each pair of cropobjects, compute the closest distance between their
+        bounding boxes.
+
+        :returns: A dict of dicts, indexed by objid, then objid, then distance.
+        """
+        document = cropobjects[0].doc
+        if document in distances_cache_per_file:
+            return distances_cache_per_file[document]
+
+        close_objects = {}
+        for c in cropobjects:
+            close_objects[c] = []
+
+        for c in cropobjects:
+            for d in cropobjects:
+                distance = cropobject_distance(c, d)
+                if distance < threshold:
+                    close_objects[c].append(d)
+                    close_objects[d].append(c)
+
+        # Remove duplicates from lists
+        for key, neighbors in close_objects.items():
+            unique_neighbors = list(dict.fromkeys(neighbors))
+            close_objects[key] = unique_neighbors
+
+        distances_cache_per_file[document] = close_objects
+        return close_objects
+
+    @staticmethod
+    def negative_example_pairs(cropobjects,
+                               threshold=THRESHOLD_NEGATIVE_DISTANCE,
+                               max_per_object=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+                               grammar=None):
+        """Samples pairs of cropobjects that are *not* connected by an edge.
+
+        :param cropobjects: A list of MuNG objects available for pair sampling.
+
+        :param threshold: Maximum distance for a pair of MuNGos to be considered.
+
+        :param max_per_object: At most this many negative samples will be output
+            per object.
+
+        :param grammar: If given, will only add negative pairs such that an edge
+            between them would be permitted by the grammar.
+
+        :return: A list of tuples of (from, to) MuNG objects that are *not* linked.
+        """
+        close_neighbors = PairwiseMungoDataPool.get_closest_objects(cropobjects, threshold)
+
+        # Exclude linked ones
+        negative_example_pairs_dict = {}
+        for c in close_neighbors:
+            negative_example_pairs_dict[c] = [d for d in close_neighbors[c] if d.objid not in c.outlinks]
+
+            # Filter with grammar.
+            if grammar is not None:
+                negative_example_pairs_dict[c] = [d for d in negative_example_pairs_dict[c]
+                                                  if grammar.validate_edge(c.clsname, d.clsname)]
+
+        # Downsample,
+        # -----------
+        # but intelligently: there should be more weight on closer objects, as they should
+        # be represented more (should they?) [NOT IMPLEMENTED].
+        if (max_per_object is not None) and (max_per_object > 0):
+            for c in close_neighbors:
+                random.shuffle(negative_example_pairs_dict[c])
+                negative_example_pairs_dict[c] = negative_example_pairs_dict[c][:max_per_object]
+
+        negative_examples = []
+        for c in negative_example_pairs_dict:
+            negative_examples.extend([(c, d) for d in negative_example_pairs_dict[c]])
+
+        return negative_examples
+
+    @staticmethod
+    def positive_example_pairs(cropobjects):
+        _cdict = {c.objid: c for c in cropobjects}
+        positive_example_pairs = []
+        for c in cropobjects:
+            for o in c.outlinks:
+                positive_example_pairs.append((c, _cdict[o]))
+        return positive_example_pairs
+
+    @staticmethod
+    def get_object_pairs(cropobjects,
+                         max_object_distance=THRESHOLD_NEGATIVE_DISTANCE,
+                         max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+                         grammar=None):
+        negative_pairs = PairwiseMungoDataPool.negative_example_pairs(cropobjects,
+                                                threshold=max_object_distance,
+                                                max_per_object=max_negative_samples,
+                                                grammar=grammar)
+        positive_pairs = PairwiseMungoDataPool.positive_example_pairs(cropobjects)
+        logging.info('Object pair extraction: positive: {}, negative: {}'
+                     ''.format(len(positive_pairs), len(negative_pairs)))
+        return negative_pairs + positive_pairs
+
 
     @staticmethod
     def __compute_patch_center(m_from, m_to):
