@@ -79,46 +79,6 @@ class PyTorchNetwork(object):
         if self.training_strategy.best_params_file is None:
             raise Exception('No file to save the best model is specified in training strategy!')
 
-    def predict(self, data_pool, runtime_batch_iterator) -> Tuple[List[CropObject], List[CropObject], List[int]]:
-        """Runs the model prediction. Expects a data pool and a runtime
-        batch iterator.
-
-        :param data_pool: The runtime data pool. It still produces targets
-            (these will be 0 in most cases...), but they are ignored. The
-            correct settings for a runtime pool are to (1) set negative sample
-            max to -1, so that all candidates within the threshold distance
-            get classified, (2) use a grammar to restrict candidate pairs,
-            (3) do *NOT* resample after epoch end.
-
-        :param runtime_batch_iterator: Batch iterator from a model's runtime.
-
-        :returns: A list of (mungo_pairs, predictions). After applying this
-            method, you will have to take care of actually adding the predicted
-            edges into the graphs -- split the MuNG pairs by documents, etc.
-        """
-        data_pool.resample_train_entities = False
-        iterator = runtime_batch_iterator(data_pool)
-        number_of_batches = ceil(len(data_pool) / runtime_batch_iterator.batch_size)
-        print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches))
-
-        all_mungos_from = []
-        all_mungos_to = []
-        all_np_predicted_classes = []
-
-        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
-                                                              desc="Predicting connections")):
-            mungos_from, mungos_to, np_inputs = data_batch
-            all_mungos_from.extend(mungos_from)
-            all_mungos_to.extend(mungos_to)
-
-            inputs = self.__np2torch(np_inputs)
-            predictions = self.net(inputs).flatten()
-            np_predictions = self.__torch2np(predictions)
-            np_predicted_classes = targets2classes(np_predictions)
-            all_np_predicted_classes.extend(np_predicted_classes)
-
-        return all_mungos_from, all_mungos_to, all_np_predicted_classes
-
     def fit(self,
             data,
             batch_iters: Dict[str, PoolIterator],
@@ -312,165 +272,6 @@ class PyTorchNetwork(object):
         else:
             return best_validation_loss
 
-    def __log_epoch_to_tensorboard(self, epoch_index,
-                                   training_epoch_outputs,
-                                   validation_epoch_outputs):
-
-        if self.tensorboard is None:
-            return
-
-        self.tensorboard.add_scalar('train/loss',
-                                    training_epoch_outputs['train_loss'], epoch_index)
-
-        for label in validation_epoch_outputs:
-            if label == 'all':
-                continue
-            if len(label) == 2:
-                for key, value in validation_epoch_outputs[label].items():
-                    label_name = 'pairwise_{0}/{1}__{2}'.format(key, label[0], label[1])
-                    self.tensorboard.add_scalar(label_name, value, epoch_index)
-
-        for key, value in validation_epoch_outputs['all'].items():
-            if key in ['accuracy', 'loss']:  # Accuracy and Loss have only one value
-                self.tensorboard.add_scalar('validation/{0}'.format(key), value, epoch_index)
-            else:  # Precision, Recall and F-Score have two values, for two classes: Negative Samples / Positive Samples
-                value_for_negative_class, value_for_positive_class = value[0], value[1]
-                self.tensorboard.add_scalar('validation/{0}'.format(key), value_for_positive_class, epoch_index)
-
-    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, current_epoch_index: int):
-        """Run one epoch of validation. Returns a dict of validation results."""
-        # Initialize data feeding from iterator
-        iterator = validation_batch_iterator(data_pool)
-        number_of_batches = ceil(len(data_pool) / validation_batch_iterator.batch_size)
-
-        validation_mungos_from = []
-        validation_mungos_to = []
-        validation_predicted_classes = []
-        validation_target_classes = []
-        validation_results = collections.OrderedDict()
-        losses = []
-
-        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
-                                                              desc="Validating epoch {0}".format(current_epoch_index))):
-            # Validation iterator might also output the MuNGOs,
-            # for improved evaluation options.
-            mungos_from, mungos_to = None, None
-            if len(data_batch) == 4:
-                mungos_from, mungos_to, np_inputs, np_targets = data_batch
-            else:
-                np_inputs, np_targets = data_batch
-
-            inputs = self.__np2torch(np_inputs)
-            targets = self.__np2torch(np_targets)
-
-            predictions = self.net(inputs).flatten()
-            np_predictions = self.__torch2np(predictions)
-            np_predicted_classes = targets2classes(np_predictions)
-            np_target_classes = targets2classes(np_targets)
-
-            loss = loss_function(predictions, targets)
-            losses.append(self.__torch2np(loss))
-
-            # Compute all evaluation metrics available for current batch.
-            current_batch_results = collections.OrderedDict()
-            current_batch_results['loss'] = self.__torch2np(loss)
-            current_batch_metrics = self.__evaluate_classification(np_predicted_classes, np_target_classes)
-            for k, v in current_batch_metrics.items():
-                current_batch_results[k] = v
-
-            validation_predicted_classes.extend(np_predicted_classes)
-            validation_target_classes.extend(np_target_classes)
-            if mungos_from is not None:
-                validation_mungos_from.extend(mungos_from)
-                validation_mungos_to.extend(mungos_to)
-
-            # Log sample outputs. Used mostly for sanity/debugging.
-            _first_n_batch_results_to_print = 3
-            if current_batch_index < _first_n_batch_results_to_print:
-                logging.info('\t{}: Targets: {}'.format(current_batch_index, np_targets[:10]))
-                logging.info('\t{}: Outputs: {}'.format(current_batch_index, np_predictions[:10]))
-
-        # Compute evaluation metrics aggregated over validation set.
-        aggregated_metrics = self.__evaluate_classification(validation_predicted_classes,
-                                                            validation_target_classes)
-        for k, v in aggregated_metrics.items():
-            validation_results[k] = v
-        aggregated_loss = numpy.mean(losses)
-        validation_results['loss'] = aggregated_loss
-
-        # Compute mistakes signatures per class pair
-        class_pair_results = evaluate_classification_by_class_pairs(validation_mungos_from,
-                                                                    validation_mungos_to,
-                                                                    validation_target_classes,
-                                                                    validation_predicted_classes)
-
-        class_pair_results['all'] = validation_results
-        return class_pair_results
-
-    @staticmethod
-    def __evaluate_classification(predicted_classes, true_classes):
-        accuracy = accuracy_score(true_classes, predicted_classes)
-        precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes, predicted_classes)
-        return {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f-score': f_score, 'support': true_sum}
-
-    def __update_learning_rate(self, optimizer, multiplier):
-        for param_group in optimizer.param_groups:
-            learning_rate = param_group['lr']
-            param_group['lr'] = learning_rate * multiplier
-            print('\tUpdate learning rate to {0}'.format(param_group['lr']))
-
-    @staticmethod
-    def __flatten_validation_results(validation_results):
-        """Flattens the validation results structure into a single
-        dict. Uses two underscores as separator."""
-        output = {}
-        for img_name in validation_results:
-            r = validation_results[img_name]
-            for label in r:
-                if label == 'loss':
-                    output['{0}/loss'] = r[label]
-                    continue
-                for k, v in r.items():
-                    output['{0}/{1}/{2}'.format(img_name, label, k)] = v
-
-        return output
-
-    @staticmethod
-    def __aggregate_validation_results(validation_results):
-        losses_per_image = []
-        rs_per_label = {}
-        for img_name in validation_results:
-            for label in validation_results[img_name]:
-                if label == 'loss':
-                    losses_per_image.append(validation_results[img_name][label])
-                    continue
-                if label not in rs_per_label:
-                    rs_per_label[label] = collections.defaultdict(list)
-                for k, v in validation_results[img_name][label].items():
-                    rs_per_label[label][k].append(v)
-
-        aggregated_metrics = {'tp', 'fp', 'fn', 'dice', 'precision', 'recall', 'f-score'}
-
-        agg_results_per_label = {}
-        for label in rs_per_label:
-            agg_r = {}
-            for k, v in rs_per_label[label].items():
-                if k not in aggregated_metrics:
-                    continue
-                agg_r[k] = numpy.mean(v)
-            agg_results_per_label[label] = agg_r
-
-        agg_rs = collections.defaultdict(list)
-        for label in agg_results_per_label:
-            for k, v in agg_results_per_label[label].items():
-                if k not in aggregated_metrics:
-                    continue
-                agg_rs[k].append(v)
-        agg_overall = {k: numpy.mean(vs) for k, vs in agg_rs.items()}
-        agg_overall['loss'] = numpy.mean(losses_per_image)
-
-        return agg_results_per_label, agg_overall
-
     def __train_epoch(self, data_pool: PairwiseMungoDataPool, training_batch_iterator: PoolIterator, loss_function,
                       optimizer,
                       current_epoch_index: int,
@@ -540,6 +341,176 @@ class PyTorchNetwork(object):
 
         return output
 
+    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, current_epoch_index: int):
+        """Run one epoch of validation. Returns a dict of validation results."""
+        # Initialize data feeding from iterator
+        iterator = validation_batch_iterator(data_pool)
+        number_of_batches = ceil(len(data_pool) / validation_batch_iterator.batch_size)
+
+        validation_mungos_from = []
+        validation_mungos_to = []
+        validation_predicted_classes = []
+        validation_target_classes = []
+        validation_results = collections.OrderedDict()
+        losses = []
+
+        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
+                                                              desc="Validating epoch {0}".format(current_epoch_index))):
+            # Validation iterator might also output the MuNGOs,
+            # for improved evaluation options.
+            mungos_from, mungos_to, np_inputs, np_targets = data_batch  # type: List[CropObject], List[CropObject], numpy.ndarray, numpy.ndarray
+
+            inputs = self.__np2torch(np_inputs)
+            targets = self.__np2torch(np_targets)
+
+            predictions = self.net(inputs).flatten()
+            np_predictions = self.__torch2np(predictions)
+            np_predicted_classes = targets2classes(np_predictions)
+            np_target_classes = targets2classes(np_targets)
+
+            loss = loss_function(predictions, targets)
+            losses.append(self.__torch2np(loss))
+
+            # Compute all evaluation metrics available for current batch.
+            current_batch_results = collections.OrderedDict()
+            current_batch_results['loss'] = self.__torch2np(loss)
+            current_batch_metrics = self.__evaluate_classification(np_predicted_classes, np_target_classes)
+            for k, v in current_batch_metrics.items():
+                current_batch_results[k] = v
+
+            validation_predicted_classes.extend(np_predicted_classes)
+            validation_target_classes.extend(np_target_classes)
+            if mungos_from is not None:
+                validation_mungos_from.extend(mungos_from)
+                validation_mungos_to.extend(mungos_to)
+
+            # Log sample outputs. Used mostly for sanity/debugging.
+            _first_n_batch_results_to_print = 3
+            if current_batch_index < _first_n_batch_results_to_print:
+                logging.info('\t{}: Targets: {}'.format(current_batch_index, np_targets[:10]))
+                logging.info('\t{}: Outputs: {}'.format(current_batch_index, np_predictions[:10]))
+
+        # Compute evaluation metrics aggregated over validation set.
+        aggregated_metrics = self.__evaluate_classification(validation_predicted_classes,
+                                                            validation_target_classes)
+        for k, v in aggregated_metrics.items():
+            validation_results[k] = v
+        aggregated_loss = numpy.mean(losses)
+        validation_results['loss'] = aggregated_loss
+
+        # Compute mistakes signatures per class pair
+        class_pair_results = evaluate_classification_by_class_pairs(validation_mungos_from,
+                                                                    validation_mungos_to,
+                                                                    validation_target_classes,
+                                                                    validation_predicted_classes)
+
+        class_pair_results['all'] = validation_results
+        return class_pair_results
+
+    def predict(self, data_pool, runtime_batch_iterator) -> Tuple[List[CropObject], List[CropObject], List[int]]:
+        """Runs the model prediction. Expects a data pool and a runtime
+        batch iterator.
+
+        :param data_pool: The runtime data pool. It still produces targets
+            (these will be 0 in most cases...), but they are ignored. The
+            correct settings for a runtime pool are to (1) set negative sample
+            max to -1, so that all candidates within the threshold distance
+            get classified, (2) use a grammar to restrict candidate pairs,
+            (3) do *NOT* resample after epoch end.
+
+        :param runtime_batch_iterator: Batch iterator from a model's runtime.
+
+        :returns: A list of (mungo_pairs, predictions). After applying this
+            method, you will have to take care of actually adding the predicted
+            edges into the graphs -- split the MuNG pairs by documents, etc.
+        """
+        data_pool.resample_train_entities = False
+        iterator = runtime_batch_iterator(data_pool)
+        number_of_batches = ceil(len(data_pool) / runtime_batch_iterator.batch_size)
+        print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches))
+
+        all_mungos_from = []
+        all_mungos_to = []
+        all_np_predicted_classes = []
+
+        for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
+                                                              desc="Predicting connections")):
+            mungos_from, mungos_to, np_inputs = data_batch
+            all_mungos_from.extend(mungos_from)
+            all_mungos_to.extend(mungos_to)
+
+            inputs = self.__np2torch(np_inputs)
+            predictions = self.net(inputs).flatten()
+            np_predictions = self.__torch2np(predictions)
+            np_predicted_classes = targets2classes(np_predictions)
+            all_np_predicted_classes.extend(np_predicted_classes)
+
+        return all_mungos_from, all_mungos_to, all_np_predicted_classes
+
+    @staticmethod
+    def __evaluate_classification(predicted_classes, true_classes):
+        accuracy = accuracy_score(true_classes, predicted_classes)
+        precision, recall, f_score, true_sum = precision_recall_fscore_support(true_classes, predicted_classes)
+        return {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f-score': f_score, 'support': true_sum}
+
+    def __update_learning_rate(self, optimizer, multiplier):
+        for param_group in optimizer.param_groups:
+            learning_rate = param_group['lr']
+            param_group['lr'] = learning_rate * multiplier
+            print('\tUpdate learning rate to {0}'.format(param_group['lr']))
+
+    @staticmethod
+    def __flatten_validation_results(validation_results):
+        """Flattens the validation results structure into a single
+        dict. Uses two underscores as separator."""
+        output = {}
+        for img_name in validation_results:
+            r = validation_results[img_name]
+            for label in r:
+                if label == 'loss':
+                    output['{0}/loss'] = r[label]
+                    continue
+                for k, v in r.items():
+                    output['{0}/{1}/{2}'.format(img_name, label, k)] = v
+
+        return output
+
+    @staticmethod
+    def __aggregate_validation_results(validation_results):
+        losses_per_image = []
+        rs_per_label = {}
+        for img_name in validation_results:
+            for label in validation_results[img_name]:
+                if label == 'loss':
+                    losses_per_image.append(validation_results[img_name][label])
+                    continue
+                if label not in rs_per_label:
+                    rs_per_label[label] = collections.defaultdict(list)
+                for k, v in validation_results[img_name][label].items():
+                    rs_per_label[label][k].append(v)
+
+        aggregated_metrics = {'tp', 'fp', 'fn', 'dice', 'precision', 'recall', 'f-score'}
+
+        agg_results_per_label = {}
+        for label in rs_per_label:
+            agg_r = {}
+            for k, v in rs_per_label[label].items():
+                if k not in aggregated_metrics:
+                    continue
+                agg_r[k] = numpy.mean(v)
+            agg_results_per_label[label] = agg_r
+
+        agg_rs = collections.defaultdict(list)
+        for label in agg_results_per_label:
+            for k, v in agg_results_per_label[label].items():
+                if k not in aggregated_metrics:
+                    continue
+                agg_rs[k].append(v)
+        agg_overall = {k: numpy.mean(vs) for k, vs in agg_rs.items()}
+        agg_overall['loss'] = numpy.mean(losses_per_image)
+
+        return agg_results_per_label, agg_overall
+
     def __torch2np(self, var):
         """Converts the PyTorch Variable or tensor to numpy."""
         if self.cuda:
@@ -554,3 +525,28 @@ class PyTorchNetwork(object):
         if self.cuda:
             output = output.cuda()
         return output
+
+    def __log_epoch_to_tensorboard(self, epoch_index,
+                                   training_epoch_outputs,
+                                   validation_epoch_outputs):
+
+        if self.tensorboard is None:
+            return
+
+        self.tensorboard.add_scalar('train/loss',
+                                    training_epoch_outputs['train_loss'], epoch_index)
+
+        for label in validation_epoch_outputs:
+            if label == 'all':
+                continue
+            if len(label) == 2:
+                for key, value in validation_epoch_outputs[label].items():
+                    label_name = 'pairwise_{0}/{1}__{2}'.format(key, label[0], label[1])
+                    self.tensorboard.add_scalar(label_name, value, epoch_index)
+
+        for key, value in validation_epoch_outputs['all'].items():
+            if key in ['accuracy', 'loss']:  # Accuracy and Loss have only one value
+                self.tensorboard.add_scalar('validation/{0}'.format(key), value, epoch_index)
+            else:  # Precision, Recall and F-Score have two values, for two classes: Negative Samples / Positive Samples
+                value_for_negative_class, value_for_positive_class = value[0], value[1]
+                self.tensorboard.add_scalar('validation/{0}'.format(key), value_for_positive_class, epoch_index)
