@@ -203,6 +203,7 @@ class PairwiseMungoDataPool(object):
             logging.info('Resampling data pool.')
             self.prepare_train_entities()
 
+        if self.resample_train_entities:
             # Shuffling the train entities shuffles the order of indices
             # into self._mungo_pair_map that contains the actual MuNGOs,
             # and at the same time preserves the pairing of the MuNGo pairs
