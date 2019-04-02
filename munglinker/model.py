@@ -143,7 +143,7 @@ class PyTorchNetwork(object):
             data['train'].batch_size = self.training_strategy.batch_size
 
             # Initialize loss
-            loss_fn = self.training_strategy.init_loss_fn()
+            loss_function = self.training_strategy.loss_function()
 
             ##################################################################
             # Iteration
@@ -151,8 +151,8 @@ class PyTorchNetwork(object):
 
                 ##################################################################
                 # Train the epoch
-                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_fn, self.optimizer,
-                                                           current_epoch_index)
+                training_epoch_output = self.__train_epoch(data['train'], batch_iters['train'], loss_function,
+                                                           self.optimizer, current_epoch_index)
                 training_results.append(training_epoch_output)
                 training_loss = training_epoch_output['train_loss']
                 training_losses.append(training_loss)
@@ -182,7 +182,7 @@ class PyTorchNetwork(object):
                 #########################################################
                 # This only happens once per n_epochs_per_checkpoint
                 if current_epoch_index % self.training_strategy.n_epochs_per_checkpoint == 0:
-                    validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'], loss_fn,
+                    validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'], loss_function,
                                                                     current_epoch_index)
                     validation_results.append(validation_epoch_output)
 
@@ -247,7 +247,8 @@ class PyTorchNetwork(object):
                         print('---------------------------------')
                         print('Final validation:\n')
 
-                        validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'], loss_fn,
+                        validation_epoch_output = self.__validate_epoch(data['valid'], batch_iters['valid'],
+                                                                        loss_function,
                                                                         current_epoch_index)
                         validation_results.append(validation_epoch_output)
 
@@ -309,7 +310,7 @@ class PyTorchNetwork(object):
 
             # One training update:
             optimizer.zero_grad()
-            predictions = self.net(inputs)
+            predictions = self.net(inputs).flatten()
             loss = loss_function(predictions, targets)
             loss.backward()
             optimizer.step()

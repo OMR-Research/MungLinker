@@ -10,7 +10,7 @@ from torch.nn.modules.loss import _WeightedLoss
 torch.set_default_tensor_type('torch.FloatTensor')
 
 
-class FocalLossElementwise(_WeightedLoss):
+class FocalLoss(_WeightedLoss):
     """Elementwise Focal Loss implementation for arbitrary tensors that computes
     the loss element-wise, e.g. for semantic segmentation. Alpha-balancing
     is implemented for entire minibatches instead of per-channel.
@@ -18,9 +18,10 @@ class FocalLossElementwise(_WeightedLoss):
     See: https://arxiv.org/pdf/1708.02002.pdf  -- RetinaNet
     """
     def __init__(self, weight=None, size_average=True, gamma=0, alpha_balance=False):
-        super(FocalLossElementwise, self).__init__(weight, size_average)
+        super(FocalLoss, self).__init__(weight, size_average)
         self.gamma = gamma
         self.alpha_balance = alpha_balance
+        self.size_average = size_average
 
     def forward(self, input, target):
         # Assumes true is a binary tensor.

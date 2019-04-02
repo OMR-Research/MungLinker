@@ -157,5 +157,5 @@ class PyTorchTrainingStrategy(object):
         # Persisting the model
         self.best_params_file = best_params_file
 
-    def init_loss_fn(self):
+    def loss_function(self):
         return self.loss_fn(**self.loss_fn_kwargs)
