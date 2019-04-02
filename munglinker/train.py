@@ -12,6 +12,7 @@ from torch.nn import BCELoss
 import numpy as np
 
 from munglinker.data_pool import load_munglinker_data
+from munglinker.losses import FocalLoss
 from munglinker.model import PyTorchNetwork
 from munglinker.training_strategies import PyTorchTrainingStrategy
 from munglinker.utils import build_experiment_name, select_model
@@ -123,16 +124,16 @@ def main(args):
 
     print('Data initialized.')
 
-    loss_fn_cls = BCELoss
-    loss_fn_kwargs = dict()
+    loss_function_class = FocalLoss
+    loss_function_arguments = {'gamma': 5, 'alpha_balance': True, 'size_average': False}
 
     exp_name = build_experiment_name(args)
 
     checkpoint_export_file = args.export + '.ckpt'
 
     strategy = PyTorchTrainingStrategy(name=exp_name,
-                                       loss_fn_class=loss_fn_cls,
-                                       loss_fn_kwargs=loss_fn_kwargs,
+                                       loss_fn_class=loss_function_class,
+                                       loss_fn_kwargs=loss_function_arguments,
                                        n_epochs_per_checkpoint=args.n_epochs_per_checkpoint,
                                        validation_use_detector=True,
                                        best_model_by_fscore=False,
