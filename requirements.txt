@@ -4,8 +4,3 @@ muscima
 omrdatasettools
 tqdm
 tensorboardX
-
-# Install with 'conda install -c conda-forge osmnx'
-osmnx
-# Install with 'conda install rtree'
-rtree
