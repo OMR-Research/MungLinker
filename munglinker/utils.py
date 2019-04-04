@@ -74,13 +74,6 @@ def build_experiment_name(args):
     config = os.path.splitext(os.path.basename(args.config_file))[0]
     model = args.model
 
-    # if hasattr(args, 'exclude_images') and args.exclude_images:
-    #     testset = os.path.split(os.path.splitext(args.exclude_images)[0])[-1].split('-')[1]
-    # elif hasattr(args, 'testset'):
-    #     testset = args.testset
-    # else:
-    #     testset = 'unspecified'
-
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     name = 'E2EOMR_{0}_{1}_{2}' \
            ''.format(split,
@@ -88,15 +81,8 @@ def build_experiment_name(args):
                      # testset,
                      timestamp)
 
-    # if args.zoom != 0:
-    #     name += '_z{0:.2f}'.format(args.zoom)
-    # if args.multiencoder_model:
-    #     name += '_multiEnc'
     if args.augmentation:
         name += '_aug'
-    # if hasattr(args, 'model'):
-    #     model_name = os.path.splitext(os.path.basename(args.model))[0]
-    #     name += '_{0}'.format(model_name)
     if args.exp_tag:
         name += '_{0}'.format(args.exp_tag)
     return name

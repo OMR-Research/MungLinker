@@ -26,8 +26,7 @@ def build_argument_parser():
 
     parser.add_argument('-m', '--model', default="base_convnet",
                         help='The name of the model that you wish to use. '
-                             'Can be one of ["base_convnet", "multitask_class_feedback", "multitask_fully_shared", '
-                             '"multitask_partially_shared"].')
+                             'Must be "base_convnet".')
     parser.add_argument('--continue_training', action='store_true',
                         help='If set, checks whether a model under the name set'
                              ' in -e already exists. If it does, initialize training'
@@ -80,14 +79,9 @@ def build_argument_parser():
     parser.add_argument('--exp_tag', action='store',
                         help='Give the experiment some additional name.')
 
-    parser.add_argument('--tb_log_dir', default="logging", help='Tensoroboard logs directory.')
+    parser.add_argument('--tensorboard_log_dir', default="logging", help='Tensoroboard logs directory.')
     parser.add_argument('--show_architecture', action='store_true',
                         help='Print network architecture before training starts.')
-
-    parser.add_argument('--debugging_regime', action='store_true',
-                        help='If set, will severely limit the amount of training'
-                             ' data in order to run through the whole operation'
-                             ' as quickly as possible.')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -146,7 +140,7 @@ def main(args):
         strategy.improvement_patience = args.n_epochs + 1
         strategy.early_stopping = False
 
-    model = PyTorchNetwork(mung_linker_network, strategy, args.tb_log_dir)
+    model = PyTorchNetwork(mung_linker_network, strategy, args.tensorboard_log_dir)
     initial_epoch = 1
     previously_best_validation_loss = np.inf
 
