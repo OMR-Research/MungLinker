@@ -70,7 +70,7 @@ class PyTorchNetwork(object):
                                              comment=self.training_strategy.name)
 
         # Extra variable for learning rate, since it attenuates during training
-        learning_rate = self.training_strategy.ini_learning_rate
+        learning_rate = self.training_strategy.initial_learning_rate
         self.optimizer = self.training_strategy.optimizer_class(self.net.parameters(), lr=learning_rate)
 
         if self.training_strategy.best_params_file is None:

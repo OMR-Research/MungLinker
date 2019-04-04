@@ -1,11 +1,11 @@
 from torch.nn.modules.loss import BCELoss
-from torch.optim import Adam
+from torch.optim import Adam, Adadelta
 
 
 class PyTorchTrainingStrategy(object):
     def __init__(self,
                  name=None,
-                 ini_learning_rate=0.001,
+                 initial_learning_rate=0.001,
                  max_epochs=1000,
                  batch_size=2,
                  refine_batch_size=False,
@@ -35,7 +35,7 @@ class PyTorchTrainingStrategy(object):
             keeping track of log files: logging will use this name,
             e.g. as a TensorBoard comment.
 
-        :param ini_learning_rate: Initial learning rate. Passed to
+        :param initial_learning_rate: Initial learning rate. Passed to
             the optimizer
 
         :param max_epochs:
@@ -107,7 +107,7 @@ class PyTorchTrainingStrategy(object):
         self.name = name
 
         # Learning rate
-        self.ini_learning_rate = ini_learning_rate
+        self.initial_learning_rate = initial_learning_rate
 
         # Epochs & batches
         self.max_epochs = max_epochs

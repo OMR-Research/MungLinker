@@ -65,6 +65,8 @@ def build_argument_parser():
     parser.add_argument('--n_epochs_per_checkpoint', type=int, default=1,
                         help='Make a checkpoint of the model every N epochs.'
                              ' The checkpoint goes under the same name as -e.')
+    parser.add_argument('--initial_learning_rate', type=float, default=0.001,
+                        help='Sets the initial learning rate for the optimizer')
     parser.add_argument('--validation_outputs_dump_root', action='store', default=None,
                         help=' Dump validation result images'
                              '(prob. masks, prob. maps and predicted labels) into this directory'
@@ -135,7 +137,8 @@ def main(args):
                                        validation_outputs_dump_root=args.validation_outputs_dump_root,
                                        checkpoint_export_file=checkpoint_export_file,
                                        best_params_file=args.export,
-                                       improvement_patience=args.patience)
+                                       improvement_patience=args.patience,
+                                       initial_learning_rate=args.initial_learning_rate)
     if args.no_early_stopping:
         strategy.improvement_patience = args.n_epochs + 1
         strategy.early_stopping = False
