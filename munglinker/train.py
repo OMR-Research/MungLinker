@@ -20,10 +20,6 @@ from munglinker.utils import build_experiment_name, select_model
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
 
-
-##############################################################################
-
-
 def build_argument_parser():
     parser = argparse.ArgumentParser(description=__doc__, add_help=True,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -124,8 +120,8 @@ def main(args):
 
     print('Data initialized.')
 
-    loss_function_class = FocalLoss
-    loss_function_arguments = {'gamma': 5, 'alpha_balance': True, 'size_average': False}
+    loss_function_class = BCELoss
+    loss_function_arguments = {}
 
     exp_name = build_experiment_name(args)
 
