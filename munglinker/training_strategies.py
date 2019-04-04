@@ -1,14 +1,5 @@
-"""This file defines the pytorch fit() wrapper.
-"""
-from __future__ import print_function, unicode_literals, division
-
-import torch
-from torch.nn.modules.loss import MSELoss
+from torch.nn.modules.loss import BCELoss
 from torch.optim import Adam
-
-# This one is a really external dependency
-
-torch.set_default_tensor_type('torch.FloatTensor')
 
 
 class PyTorchTrainingStrategy(object):
@@ -20,7 +11,7 @@ class PyTorchTrainingStrategy(object):
                  refine_batch_size=False,
                  improvement_patience=20,
                  optimizer_class=Adam,
-                 loss_fn_class=MSELoss,  # TODO: Back to softmax? This will be bad...
+                 loss_fn_class=BCELoss,
                  loss_fn_kwargs=dict(),
                  validation_use_detector=False,
                  validation_detector_threshold=0.5,
@@ -35,7 +26,7 @@ class PyTorchTrainingStrategy(object):
                  early_stopping=True,
                  lr_refinement_multiplier=0.2,
                  n_refinement_steps=5,
-                 refinement_patience=20,
+                 refinement_patience=5,
                  best_params_file="default_model.tsd",
                  ):
         """Initialize a training strategy. Includes some validation params.
