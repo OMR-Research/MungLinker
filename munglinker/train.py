@@ -1,10 +1,5 @@
-#!/usr/bin/env python
-"""This is a script that..."""
-from __future__ import print_function, unicode_literals
-
 import argparse
 import logging
-import os
 import time
 
 import torch
@@ -16,9 +11,8 @@ from munglinker.losses import FocalLoss
 from munglinker.model import PyTorchNetwork
 from munglinker.training_strategies import PyTorchTrainingStrategy
 from munglinker.utils import build_experiment_name, select_model
+from torchsummary import summary
 
-__version__ = "0.0.1"
-__author__ = "Jan Hajic jr."
 
 def build_argument_parser():
     parser = argparse.ArgumentParser(description=__doc__, add_help=True,
@@ -55,9 +49,6 @@ def build_argument_parser():
                         help='Minibatch size for training.')
     parser.add_argument('--n_epochs', type=int, default=100,
                         help='Number of training epochs.')
-    parser.add_argument('--no_early_stopping', action='store_true',
-                        help='Do not apply early-stopping, run until --n_epochs'
-                             ' are exhausted.')
     parser.add_argument('--patience', type=int, default=10,
                         help='Number of steps without improvement in validation'
                              ' loss after which the learning rate is attenuated.')
@@ -67,11 +58,6 @@ def build_argument_parser():
                              ' The checkpoint goes under the same name as -e.')
     parser.add_argument('--initial_learning_rate', type=float, default=0.001,
                         help='Sets the initial learning rate for the optimizer')
-    parser.add_argument('--validation_outputs_dump_root', action='store', default=None,
-                        help=' Dump validation result images'
-                             '(prob. masks, prob. maps and predicted labels) into this directory'
-                             'plus the ``name`` (so that the dump root can be shared between'
-                             'strategies and the images do not mix up).')
 
     parser.add_argument('-a', '--augmentation', action='store_true',
                         help='If set, will train with data augmentation:'
@@ -82,8 +68,6 @@ def build_argument_parser():
                         help='Give the experiment some additional name.')
 
     parser.add_argument('--tensorboard_log_dir', default="logging", help='Tensoroboard logs directory.')
-    parser.add_argument('--show_architecture', action='store_true',
-                        help='Print network architecture before training starts.')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -97,6 +81,46 @@ def main(args):
     _start_time = time.time()
 
     mung_linker_network = select_model(args.model, args.batch_size)
+
+    print(mung_linker_network)
+    summary(mung_linker_network, (3, 256, 512), device="cpu")
+
+    loss_function_class = BCELoss
+    loss_function_arguments = {}
+
+    exp_name = build_experiment_name(args)
+
+    checkpoint_export_file = args.export + '.ckpt'
+
+    strategy = PyTorchTrainingStrategy(name=exp_name,
+                                       loss_fn_class=loss_function_class,
+                                       loss_fn_kwargs=loss_function_arguments,
+                                       n_epochs_per_checkpoint=args.n_epochs_per_checkpoint,
+                                       best_model_by_fscore=False,
+                                       max_epochs=args.n_epochs,
+                                       batch_size=args.batch_size,
+                                       checkpoint_export_file=checkpoint_export_file,
+                                       best_params_file=args.export,
+                                       improvement_patience=args.patience,
+                                       initial_learning_rate=args.initial_learning_rate)
+
+    print(strategy.summary())
+
+    model = PyTorchNetwork(mung_linker_network, strategy, args.tensorboard_log_dir)
+    initial_epoch = 1
+    previously_best_validation_loss = np.inf
+
+    if args.continue_training:
+        logging.info('Attempting to initialize from checkpoint: {0}'.format(checkpoint_export_file))
+        try:
+            checkpoint = torch.load(checkpoint_export_file)
+            model.net.load_state_dict(checkpoint['model_state_dict'])
+            model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            initial_epoch = checkpoint['epoch'] + 1
+            previously_best_validation_loss = checkpoint['best_validation_loss']
+        except OSError as e:
+            logging.warning(
+                'Error during loading of previously saved checkpoint {0}: {1}'.format(checkpoint_export_file, e))
 
     data = load_munglinker_data(
         mung_root=args.mung_root,
@@ -115,49 +139,6 @@ def main(args):
     batch_iters = {'train': train_batch_iter, 'valid': valid_batch_iter, 'test': test_batch_iter}
 
     print('Data initialized.')
-
-    loss_function_class = BCELoss
-    loss_function_arguments = {}
-
-    exp_name = build_experiment_name(args)
-
-    checkpoint_export_file = args.export + '.ckpt'
-
-    strategy = PyTorchTrainingStrategy(name=exp_name,
-                                       loss_fn_class=loss_function_class,
-                                       loss_fn_kwargs=loss_function_arguments,
-                                       n_epochs_per_checkpoint=args.n_epochs_per_checkpoint,
-                                       validation_use_detector=True,
-                                       best_model_by_fscore=False,
-                                       max_epochs=args.n_epochs,
-                                       batch_size=args.batch_size,
-                                       validation_subsample_window=None,
-                                       validation_stride_ratio=None,
-                                       validation_no_detector_subsample_window=None,
-                                       validation_outputs_dump_root=args.validation_outputs_dump_root,
-                                       checkpoint_export_file=checkpoint_export_file,
-                                       best_params_file=args.export,
-                                       improvement_patience=args.patience,
-                                       initial_learning_rate=args.initial_learning_rate)
-    if args.no_early_stopping:
-        strategy.improvement_patience = args.n_epochs + 1
-        strategy.early_stopping = False
-
-    model = PyTorchNetwork(mung_linker_network, strategy, args.tensorboard_log_dir)
-    initial_epoch = 1
-    previously_best_validation_loss = np.inf
-
-    if args.continue_training:
-        logging.info('Attempting to initialize from checkpoint: {0}'.format(checkpoint_export_file))
-        try:
-            checkpoint = torch.load(checkpoint_export_file)
-            model.net.load_state_dict(checkpoint['model_state_dict'])
-            model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            initial_epoch = checkpoint['epoch'] + 1
-            previously_best_validation_loss = checkpoint['best_validation_loss']
-        except OSError as e:
-            logging.warning(
-                'Error during loading of previously saved checkpoint {0}: {1}'.format(checkpoint_export_file, e))
 
     model.fit(data=data,
               batch_iters=batch_iters,

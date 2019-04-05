@@ -15,16 +15,13 @@ from torch.autograd import Variable
 from torch.nn import Module
 from tqdm import tqdm
 
-from munglinker.batch_iterators import generator_from_iterator, PoolIterator
+from munglinker.batch_iterators import PoolIterator
 from munglinker.data_pool import PairwiseMungoDataPool
 from munglinker.evaluation import evaluate_classification_by_class_pairs, print_class_pair_results
 from munglinker.training_strategies import PyTorchTrainingStrategy
 from munglinker.utils import targets2classes
 
 torch.set_default_tensor_type('torch.FloatTensor')
-
-__version__ = "0.0.1"
-__author__ = "Jan Hajic jr."
 
 
 class PyTorchNetwork(object):
@@ -36,9 +33,6 @@ class PyTorchNetwork(object):
     training strategy is correct.
 
     The biggest workhorse is the ``fit`` function.
-
-    Adapted from lasagne_wrapper.network.Network by Matthias Dorfer
-    (matthias.dorfer@jku.at).
     """
 
     def __init__(self, net: Module, training_strategy: PyTorchTrainingStrategy = None, tensorboard_log_path=None):
@@ -237,7 +231,7 @@ class PyTorchNetwork(object):
 
                     epochs_since_last_improvement = 0
                     refinement_stage = True
-                    if refinement_steps < self.training_strategy.n_refinement_steps:
+                    if refinement_steps < self.training_strategy.number_of_refinement_steps:
                         self.__update_learning_rate(self.optimizer,
                                                     self.training_strategy.lr_refinement_multiplier)
                         refinement_steps += 1

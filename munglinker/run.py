@@ -24,12 +24,6 @@ from munglinker.utils import midi_matrix_to_midi
 from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
 import numpy as np
 
-__version__ = "0.0.1"
-__author__ = "Jan Hajic jr."
-
-
-##############################################################################
-
 class MunglinkerRunner(object):
     """The MunglinkerRunner defines the Munglinker component interface. It has a run()
     method that takes a MuNG (the whole graph) and outputs a new MuNG with the same

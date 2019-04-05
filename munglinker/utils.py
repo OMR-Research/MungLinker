@@ -1,8 +1,6 @@
-import copy
 import datetime
 import logging
 import os
-import pickle
 
 import numpy
 import numpy as np
@@ -18,21 +16,6 @@ from munglinker.models.munglinker_network import MungLinkerNetwork
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
-
-
-class ColoredCommandLine:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-    def print(self, string, color, end="\n") -> None:
-        """ Prints a string in the given color or style """
-        print(color + string + ColoredCommandLine.ENDC, end=end)
 
 
 PRIMITIVES = ["16th_rest",

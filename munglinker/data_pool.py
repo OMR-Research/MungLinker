@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-"""This is a script that..."""
 from __future__ import print_function, unicode_literals
 
 import argparse
@@ -22,9 +20,6 @@ from muscima.io import parse_cropobject_list
 from tqdm import tqdm
 
 from munglinker.utils import config2data_pool_dict, load_grammar
-
-__version__ = "0.0.1"
-__author__ = "Jan Hajic jr."
 
 ##############################################################################
 # This should all be in a config file.

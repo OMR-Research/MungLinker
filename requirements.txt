@@ -4,3 +4,4 @@ muscima
 omrdatasettools
 tqdm
 tensorboardX
+torchsummary

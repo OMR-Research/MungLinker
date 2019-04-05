@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-"""This is a script that..."""
 from __future__ import print_function, unicode_literals
 import argparse
 import copy
@@ -9,14 +7,6 @@ import time
 import numpy as np
 
 from muscima.inference_engine_constants import _CONST
-
-__version__ = "0.0.1"
-__author__ = "Jan Hajic jr."
-
-
-##############################################################################
-
-# Code from Matthias Dorfer.
 
 # This takes care of multi-threading data loading.
 def threaded_generator(generator, num_cached=10):
