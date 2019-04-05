@@ -16,8 +16,8 @@ class PyTorchTrainingStrategy(object):
                  n_epochs_per_checkpoint=10,
                  checkpoint_export_file=None,
                  lr_refinement_multiplier=0.2,
-                 number_of_refinement_steps=5,
-                 refinement_patience=5,
+                 number_of_refinement_steps=10,
+                 refinement_patience=2,
                  best_params_file="default_model.tsd",
                  ):
         """Initialize a training strategy. Includes some validation params.
