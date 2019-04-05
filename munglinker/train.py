@@ -20,7 +20,7 @@ def build_argument_parser():
 
     parser.add_argument('-m', '--model', default="base_convnet",
                         help='The name of the model that you wish to use. '
-                             'Must be "base_convnet".')
+                             'Must be one of ["base_convnet", "base_convnet_double_filter"].')
     parser.add_argument('--continue_training', action='store_true',
                         help='If set, checks whether a model under the name set'
                              ' in -e already exists. If it does, initialize training'

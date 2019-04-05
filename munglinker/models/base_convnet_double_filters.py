@@ -8,32 +8,27 @@ from muscima.cropobject import CropObject
 from torch.autograd import Variable
 from typing import List
 
+from torchsummary import summary
+
 from munglinker.models.munglinker_network import MungLinkerNetwork
 
 
-class BaseConvnet(MungLinkerNetwork):
-    """Basic ConvNet with binary classifier sigmoid (no bias) at the end."""
-
+class BaseConvnetDoubleFilters(MungLinkerNetwork):
     def __init__(self,
                  n_input_channels=3,
-                 leaky_relu=False,
                  batch_size=4):
-        super(BaseConvnet, self).__init__(batch_size)
+        super(BaseConvnetDoubleFilters, self).__init__(batch_size)
 
         self.n_input_channels = n_input_channels
 
-        # Convolutional part
-        # ------------------
-
-        # Conv layer params, downstream through the stack
         kernel_sizes = [3, 3, 3, 3, 3]
         paddings = [1, 1, 1, 1, 1]
         strides = [1, 1, 1, 1, 1]
-        n_filters = [8, 16, 32, 32, 32]
+        n_filters = [16, 32, 64, 64, 64]
 
         cnn = nn.Sequential()
 
-        def convRelu(i, batchNormalization=True):
+        def convRelu(i):
             """Builds the i-th convolutional layer/batch-norm block."""
             layer_n_input_channels = n_input_channels
             if i != 0:
@@ -45,48 +40,40 @@ class BaseConvnet(MungLinkerNetwork):
                                      kernel_sizes[i],
                                      strides[i],
                                      paddings[i]))
-            if batchNormalization:
-                cnn.add_module('batchnorm{0}'.format(i),
-                               nn.BatchNorm2d(layer_n_output_channels))
-            if leaky_relu:
-                cnn.add_module('relu{0}'.format(i),
-                               nn.LeakyReLU(0.2, inplace=True))
-            else:
-                cnn.add_module('relu{0}'.format(i), nn.ReLU(True))
+            cnn.add_module('batchnorm{0}'.format(i), nn.BatchNorm2d(layer_n_output_channels))
+            cnn.add_module('relu{0}'.format(i), nn.ReLU(True))
 
         # Input size expected (n_batch x n_channels x MIDI_N_PITCHES x MIDI_MAX_LEN),
         # which is by default (n_batch x 3 x 256 x 512)
         convRelu(0)
-        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 8 x 128 x 256
+        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 16 x 128 x 256
         convRelu(1)
-        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 16 x 64 x 128
+        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 32 x 64 x 128
         convRelu(2)
-        cnn.add_module('pooling{0}'.format(2), nn.MaxPool2d(2, 2))  # 32 x 32 x 64
+        cnn.add_module('pooling{0}'.format(2), nn.MaxPool2d(2, 2))  # 64 x 32 x 64
         convRelu(3)
-        cnn.add_module('pooling{0}'.format(3), nn.MaxPool2d(2, 2))  # 32 x 16 x 32
+        cnn.add_module('pooling{0}'.format(3), nn.MaxPool2d(2, 2))  # 64 x 16 x 32
         convRelu(4)
-        cnn.add_module('pooling{0}'.format(4), nn.MaxPool2d(2, 2))  # 32 x 8 x 16
+        cnn.add_module('pooling{0}'.format(4), nn.MaxPool2d(2, 2))  # 64 x 8 x 16
 
         self.cnn = cnn
 
         # Add fully connected layer stack
         fcn = nn.Sequential()
         fcn.add_module('fcn0',
-                       nn.Linear(in_features=32 * 8 * 16,
+                       nn.Linear(in_features=64 * 8 * 16,
                                  out_features=1,  # Output decision
                                  bias=False))
 
         self.fcn = fcn
-
-        # Output through softmax
-        self.output_activation = nn.Sigmoid()  # nn.Softmax()
+        self.output_activation = nn.Sigmoid()
 
     def get_conv_output(self, input):
         conv_output = self.cnn(input)
         return conv_output
 
     def get_fcn_output_from_conv_output(self, conv_output):
-        fcn_input = conv_output.view(-1, 32 * 8 * 16)
+        fcn_input = conv_output.view(-1, 64 * 8 * 16)
         fcn_output = self.fcn(fcn_input)
         return fcn_output
 
@@ -149,33 +136,9 @@ class BaseConvnet(MungLinkerNetwork):
 
 
 if __name__ == '__main__':
-    logging.info('Running model onset_counter in test mode.')
-
-    _batch_size = 6
     patch_shape = 3, 256, 512
-    patch_height = 256
-    patch_width = 512
     patch_channels = 3
 
-    model = BaseConvnet(n_input_channels=patch_channels, leaky_relu=False)
-
-    from munglinker.utils import generate_munglinker_training_batch, plot_batch_patches
-
-    patches, targets = generate_munglinker_training_batch(_batch_size, patch_shape)
-
-    print('patches shape: {}'.format(patches.shape))
-
-    X, y = model.prepare_patch_and_target([], [], patches, targets)
-
-    plot_batch_patches(patches, targets)
-
-    X_torch = Variable(torch.from_numpy(X).float())
-    y_torch = Variable(torch.from_numpy(y).float())
-
-    print('X.shape = {}'.format(X.shape))
-    print('y.shape = {}'.format(y.shape))
-
-    y_pred = model(X_torch)
-
-    print('y_true = {}'.format(y_torch))
-    print('y_pred = {}'.format(y_pred))
+    model = BaseConvnetDoubleFilters(n_input_channels=patch_channels)
+    print(model)
+    summary(model, patch_shape, device="cpu")
