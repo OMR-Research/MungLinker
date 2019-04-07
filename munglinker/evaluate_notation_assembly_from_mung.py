@@ -8,6 +8,8 @@ the notation assembly stage of the OMR pipeline.
 """
 from __future__ import print_function, unicode_literals, division
 
+from glob import glob
+
 __version__ = "0.0.1"
 __author__ = "Jorge Calvo-Zaragoza"
 
@@ -26,9 +28,9 @@ def build_argument_parser():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('-r', '--reference', action='store', required=True,
-                        help='The reference MuNG (ground-truth annotation).')
+                        help='The reference MuNG (ground-truth annotation). File or directory')
     parser.add_argument('-p', '--predicted', action='store',
-                        help='The predicted MuNG (output of OMR).')
+                        help='The predicted MuNG (output of OMR). File or directory')
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
@@ -86,12 +88,11 @@ def cropobject_dict_from_list(cropobject_list):
     return {cropobject.objid: cropobject for cropobject in cropobject_list}
 
 
-def main(args):
-    print('Starting evaluation...')
-
+def evaluate_result(mung_reference_file, predicted_mung_file):
+    print("Computing statistics for {0}".format(predicted_mung_file))
     # Read crop objects list
-    reference_objects = parse_cropobject_list(args.reference)
-    predicted_objects = parse_cropobject_list(args.predicted)
+    reference_objects = parse_cropobject_list(mung_reference_file)
+    predicted_objects = parse_cropobject_list(predicted_mung_file)
 
     # Build pairs between predicted and reference
     object_matching_pair = get_object_matching_pairs(predicted_objects, reference_objects)
@@ -135,4 +136,23 @@ def main(args):
 if __name__ == '__main__':
     parser = build_argument_parser()
     args = parser.parse_args()
-    main(args)
+
+    reference_mungs = []
+    if os.path.isfile(args.reference):
+        reference_mungs.append(args.reference)
+    elif os.path.isdir(args.reference):
+        reference_mungs.extend(glob(args.reference + "/*.xml"))
+
+    predicted_mungs = []
+    if os.path.isfile(args.predicted):
+        predicted_mungs.append(args.predicted)
+    elif os.path.isdir(args.predicted):
+        predicted_mungs.extend(glob(args.predicted + "/*.xml"))
+
+    if len(reference_mungs) != len(predicted_mungs):
+        print("Didn't find a prediction for every reference mung. Filtering...")
+        predicted_mung_names = [os.path.basename(p).replace("_predicted.xml", ".xml") for p in predicted_mungs]
+        reference_mungs = [r for r in reference_mungs if os.path.basename(r) in predicted_mung_names]
+
+    for reference, prediction in zip(reference_mungs, predicted_mungs):
+        evaluate_result(reference, prediction)

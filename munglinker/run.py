@@ -8,6 +8,7 @@ import copy
 import logging
 import os
 import time
+from glob import glob
 from typing import Dict
 
 import torch
@@ -19,6 +20,7 @@ from muscima.io import parse_cropobject_list, export_cropobject_list
 
 from munglinker.batch_iterators import PoolIterator
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
+from munglinker.evaluate_notation_assembly_from_mung import evaluate_result
 from munglinker.model import PyTorchNetwork
 from munglinker.utils import midi_matrix_to_midi
 from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
@@ -244,29 +246,35 @@ if __name__ == '__main__':
         logging.info('Loading image: {}'.format(args.input_image))
         image_files.append(args.input_image)
     elif os.path.isdir(args.input_image):
-        raise NotImplementedError
-    else:
-        raise OSError('Input image(s) not found: {}'.format(args.input_image))
+        image_files.extend(glob(args.input_image + "/*.png"))
 
     if os.path.isfile(args.input_mung):
         logging.info('Loading MuNG: {}'.format(args.input_mung))
         input_mung_files.append(args.input_mung)
     elif os.path.isdir(args.input_mung):
-        raise NotImplementedError
+        input_mung_files.extend(glob(args.input_mung + "/*.xml"))
+
+    if os.path.isfile(args.output_mung):
+        output_mung_files = [args.output_mung]
+        os.makedirs(os.path.dirname(args.output_mung), exist_ok=True)
     else:
-        raise OSError('Input MuNG(s) not found: {}'.format(args.input_mung))
+        output_mung_files = [os.path.join(args.output_mung, os.path.basename(f))
+                             for f in input_mung_files]
+        os.makedirs(args.output_mung, exist_ok=True)
 
     if len(image_files) != len(input_mung_files):
         raise Exception("Length of images and MuNGs is not the same")
 
-    output_mungs = []
-    for i, (image_file, input_mung_file) in enumerate(zip(image_files, input_mung_files)):
+    for i, (image_file, input_mung_file, output_mung_file) in enumerate(zip(image_files, input_mung_files, output_mung_files)):
         input_mungos = parse_cropobject_list(input_mung_file)
         input_mung = NotationGraph(input_mungos)
 
-        logging.info('Running Munglinker: {} / {}'.format(i, len(image_files)))
+        print('Running Munglinker: {} / {}'.format(i, len(image_files)))
         output_mung = runner.run(image_file, input_mung)
-        output_mungs.append(output_mung)
+        with open(output_mung_file, 'w') as file:
+            file.write(export_cropobject_list(output_mung.cropobjects))
+
+        evaluate_result(input_mung_file, output_mung_file)
 
     if args.visualize:
         logging.info('Visualization not implemented!!!')
@@ -278,21 +286,6 @@ if __name__ == '__main__':
         # with open(output_path, 'wb') as stream_out:
         #     mf.writeFile(stream_out)
         pass
-
-    ##########################################################################
-    # Save output (TODO: refactor this into the processing loop)
-
-    if os.path.isdir(args.output_mung):
-        output_mung_files = [os.path.join(args.output_mung, os.path.basename(f))
-                             for f in input_mung_files]
-    else:
-        output_mung_files = [args.output_mung]
-        os.makedirs(os.path.dirname(args.output_mung), exist_ok=True)
-
-    for output_mung_file, output_mung in zip(output_mung_files, output_mungs):
-        logging.info('Saving output MuNG to: {}'.format(output_mung_file))
-        with open(output_mung_file, 'w') as file:
-            file.write(export_cropobject_list(output_mung.cropobjects))
 
     end_time = time.time()
     logging.info('run.py done in {0:.3f} s'.format(end_time - start_time))
