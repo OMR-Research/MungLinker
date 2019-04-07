@@ -93,7 +93,15 @@ def evaluate_result(mung_reference_file, predicted_mung_file):
     # Read crop objects list
     reference_objects = parse_cropobject_list(mung_reference_file)
     predicted_objects = parse_cropobject_list(predicted_mung_file)
+    precision, recall, f1_score, true_positives, false_positives, false_negatives = \
+        compute_statistics_on_crop_objects(reference_objects, predicted_objects)
+    print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))
+    print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives, false_positives,
+                                                                                   false_negatives))
+    return precision, recall, f1_score, true_positives, false_positives, false_negatives
 
+
+def compute_statistics_on_crop_objects(reference_objects, predicted_objects):
     # Build pairs between predicted and reference
     object_matching_pair = get_object_matching_pairs(predicted_objects, reference_objects)
 
@@ -128,9 +136,8 @@ def evaluate_result(mung_reference_file, predicted_mung_file):
     precision = true_positives / (true_positives + false_positives)
     recall = true_positives / (true_positives + false_negatives)
     f1_score = (2. * true_positives) / (2. * true_positives + false_positives + false_negatives)
-    print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))
-    print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives, false_positives,
-                                                                                   false_negatives))
+
+    return precision, recall, f1_score, true_positives, false_positives, false_negatives
 
 
 if __name__ == '__main__':
@@ -155,4 +162,5 @@ if __name__ == '__main__':
         reference_mungs = [r for r in reference_mungs if os.path.basename(r) in predicted_mung_names]
 
     for reference, prediction in zip(reference_mungs, predicted_mungs):
-        evaluate_result(reference, prediction)
+        precision, recall, f1_score, true_positives, false_positives, false_negatives = \
+            evaluate_result(reference, prediction)

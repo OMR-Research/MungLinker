@@ -274,7 +274,8 @@ if __name__ == '__main__':
         with open(output_mung_file, 'w') as file:
             file.write(export_cropobject_list(output_mung.cropobjects))
 
-        evaluate_result(input_mung_file, output_mung_file)
+        precision, recall, f1_score, true_positives, false_positives, false_negatives = \
+            evaluate_result(input_mung_file, output_mung_file)
 
     if args.visualize:
         logging.info('Visualization not implemented!!!')
