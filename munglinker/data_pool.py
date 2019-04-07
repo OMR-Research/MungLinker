@@ -7,7 +7,7 @@ import os
 import random
 import time
 from glob import glob
-from typing import List
+from typing import List, Tuple, Dict
 
 import numpy as np
 import yaml
@@ -20,31 +20,6 @@ from muscima.io import parse_cropobject_list
 from tqdm import tqdm
 
 from munglinker.utils import config2data_pool_dict, load_grammar
-
-##############################################################################
-# This should all be in a config file.
-
-# Data point sampling parameters
-THRESHOLD_NEGATIVE_DISTANCE = 200
-MAX_NEGATIVE_EXAMPLES_PER_OBJECT = None
-RESAMPLE_EACH_EPOCH = False
-
-# The size of the image patches that are ouptut
-PATCH_HEIGHT = 256
-PATCH_WIDTH = 512
-# If this is set, the image in the patch will be masked to 0,
-# so the system will only have the from/to masks to work with.
-PATCH_NO_IMAGE = 0
-
-# The rescaling factor that is applied before the patch is extracted
-# (In effect, setting this to 0.5 downscales by a factor of 2, so
-#  the effective window w.r.t. the input image will be twice the specified
-#  PATCH_HEIGHT, PATCH_WIDTH.)
-IMAGE_ZOOM = 1.0
-
-# Randomly moves the patch this many pixels away from the midpoint
-# between the two sampled objects.
-MAX_PATCH_DISPLACEMENT = 0
 
 ##############################################################################
 # These functions are concerned with data point extraction for parser training.
@@ -72,13 +47,12 @@ class PairwiseMungoDataPool(object):
 
     def __init__(self, mungs: List[NotationGraph],
                  images: List[np.ndarray],
-                 max_edge_length=THRESHOLD_NEGATIVE_DISTANCE,
-                 max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
-                 resample_train_entities=False,
-                 grammar: DependencyGrammar = None,
-                 patch_size=(PATCH_HEIGHT, PATCH_WIDTH),
-                 patch_no_image=PATCH_NO_IMAGE,
-                 zoom: float = IMAGE_ZOOM):
+                 max_edge_length: int,
+                 max_negative_samples: int,
+                 patch_size: Tuple[int, int],
+                 zoom: float,
+                 resample_train_entities: bool = False,
+                 grammar: DependencyGrammar = None):
         """Initialize the data pool.
 
         :param mungs: The NotationGraph objects for each document
@@ -105,10 +79,6 @@ class PairwiseMungoDataPool(object):
         :param patch_size: What the size of the extracted patch should
             be (after applying zoom), specified as ``(rows, columns)``.
 
-        :param patch_no_image: Do *NOT* use the underlying image.
-            Instead, channel 0 is set to all 0s. This is one of the baselines
-            we use.
-
         :param zoom: The rescaling factor. Setting this to 0.5 means
             the image will be downscaled to half the height & width
             before the patch is extracted.
@@ -125,7 +95,6 @@ class PairwiseMungoDataPool(object):
         self.patch_size = patch_size
         self.patch_height = patch_size[0]
         self.patch_width = patch_size[1]
-        self.patch_no_image = patch_no_image
 
         self.zoom = zoom
         if self.zoom != 1.0:
@@ -156,7 +125,7 @@ class PairwiseMungoDataPool(object):
         mungos_from = []
         mungos_to = []
         for i_entity, (i_image, i_mungo_pair) in enumerate(batch_entities):
-            m_from, m_to = self._mungo_pair_map[i_mungo_pair]
+            m_from, m_to = self.all_mungo_pairs[i_mungo_pair]
             mungos_from.append(m_from)
             mungos_to.append(m_to)
             patch = self.load_patch(i_image, m_from, m_to)
@@ -216,9 +185,9 @@ class PairwiseMungoDataPool(object):
         and ``m_to`` are one instance of sampled mungo pairs.
         """
         self.train_entities = []
-        self._mungo_pair_map = []
+        self.all_mungo_pairs = []
         n_entities = 0
-        for i_doc, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs")):
+        for mung_index, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs")):
             object_pairs = PairwiseMungoDataPool.get_object_pairs(
                 mung.cropobjects,
                 max_object_distance=self.max_edge_length,
@@ -228,14 +197,14 @@ class PairwiseMungoDataPool(object):
                 # Try extracting a target patch. If this fails, don't add
                 # the entity.
                 try:
-                    self.load_patch(i_doc, m_from, m_to)
+                    self.load_patch(mung_index, m_from, m_to)
                 except MunglinkerDataError:
                     logging.info('Object pair {} --> {} does not fit within patch; skipped.'
                                  ''.format(m_from.uid, m_to.uid))
                     continue
 
-                self._mungo_pair_map.append((m_from, m_to))
-                self.train_entities.append([i_doc, n_entities])
+                self.all_mungo_pairs.append((m_from, m_to))
+                self.train_entities.append([mung_index, n_entities])
                 n_entities += 1
 
         # n_items x n_outputs x
@@ -277,8 +246,7 @@ class PairwiseMungoDataPool(object):
         i_patch_t, i_patch_l, i_patch_b, i_patch_r = bbox_of_patch_wrt_image
 
         try:
-            if not self.patch_no_image:
-                output[0][i_patch_t:i_patch_b, i_patch_l:i_patch_r] = image_crop
+            output[0][i_patch_t:i_patch_b, i_patch_l:i_patch_r] = image_crop
         except ValueError as e:
             print('Image shape: {}'.format(image.shape))
             print('Patch bbox:  {}'.format(bbox_patch))
@@ -330,9 +298,8 @@ class PairwiseMungoDataPool(object):
 
         return output
 
-
     @staticmethod
-    def get_closest_objects(cropobjects: List[CropObject], threshold=100):
+    def get_closest_objects(cropobjects: List[CropObject], threshold) -> Dict[CropObject, List[CropObject]]:
         """For each pair of cropobjects, compute the closest distance between their
         bounding boxes.
 
@@ -362,9 +329,9 @@ class PairwiseMungoDataPool(object):
         return close_objects
 
     @staticmethod
-    def negative_example_pairs(cropobjects,
-                               threshold=THRESHOLD_NEGATIVE_DISTANCE,
-                               max_per_object=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+    def negative_example_pairs(cropobjects: List[CropObject],
+                               threshold: int,
+                               max_per_object: int,
                                grammar=None):
         """Samples pairs of cropobjects that are *not* connected by an edge.
 
@@ -417,19 +384,39 @@ class PairwiseMungoDataPool(object):
         return positive_example_pairs
 
     @staticmethod
-    def get_object_pairs(cropobjects,
-                         max_object_distance=THRESHOLD_NEGATIVE_DISTANCE,
-                         max_negative_samples=MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
+    def get_object_pairs(cropobjects: List[CropObject],
+                         max_object_distance,
+                         max_negative_samples,
                          grammar=None):
         negative_pairs = PairwiseMungoDataPool.negative_example_pairs(cropobjects,
-                                                threshold=max_object_distance,
-                                                max_per_object=max_negative_samples,
-                                                grammar=grammar)
+                                                                      threshold=max_object_distance,
+                                                                      max_per_object=max_negative_samples,
+                                                                      grammar=grammar)
         positive_pairs = PairwiseMungoDataPool.positive_example_pairs(cropobjects)
-        logging.info('Object pair extraction: positive: {}, negative: {}'
-                     ''.format(len(positive_pairs), len(negative_pairs)))
+        print('Object pair extraction: {} positive samples, {} negative samples.'
+              ''.format(len(positive_pairs), len(negative_pairs)))
         return negative_pairs + positive_pairs
 
+    @staticmethod
+    def get_all_object_pairs(cropobjects: List[CropObject],
+                             max_object_distance,
+                             grammar=None) -> List[Tuple[CropObject, CropObject]]:
+        close_neighbors = PairwiseMungoDataPool.get_closest_objects(cropobjects, max_object_distance)
+
+        # Exclude linked ones
+        example_pairs_dict = {}
+        for c in close_neighbors:
+            if grammar is None:
+                example_pairs_dict[c] = close_neighbors[c]
+            else:
+                example_pairs_dict[c] = [d for d in close_neighbors[c] if grammar.validate_edge(c.clsname, d.clsname)]
+
+        examples = []
+        for c in example_pairs_dict:
+            for d in example_pairs_dict[c]:
+                examples.append((c, d))
+
+        return examples
 
     @staticmethod
     def __compute_patch_center(m_from, m_to):
@@ -600,29 +587,21 @@ def load_munglinker_data(mung_root, images_root, split_file,
     split = load_split(split_file)
     train_on_bounding_boxes = False
 
-    if config_file is not None:
-        config = load_config(config_file)
-        data_pool_dict = config2data_pool_dict(config)
+    if config_file is None:
+        print("No configuration file found. Terminating")
+        exit(-1)
 
-        if 'TRAIN_ON_BOUNDING_BOXES' in config:
-            train_on_bounding_boxes = config['TRAIN_ON_BOUNDING_BOXES']
+    config = load_config(config_file)
+    data_pool_dict = config2data_pool_dict(config)
 
-        validation_data_pool_dict = copy.deepcopy(data_pool_dict)
-        validation_data_pool_dict['resample_train_entities'] = False
-        if 'VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT' in config:
-            validation_data_pool_dict['max_negative_samples'] = \
-                config['VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT']
-    else:
-        # Default configuration from variables set at the start of this module
-        data_pool_dict = {
-            'max_edge_length': THRESHOLD_NEGATIVE_DISTANCE,
-            'max_negative_samples': MAX_NEGATIVE_EXAMPLES_PER_OBJECT,
-            'resample_train_entities': RESAMPLE_EACH_EPOCH,
-            'patch_size': (PATCH_HEIGHT, PATCH_WIDTH),
-            'zoom': IMAGE_ZOOM
-        }
-        validation_data_pool_dict = copy.deepcopy(data_pool_dict)
-        validation_data_pool_dict['resample_train_entities'] = False
+    if 'TRAIN_ON_BOUNDING_BOXES' in config:
+        train_on_bounding_boxes = config['TRAIN_ON_BOUNDING_BOXES']
+
+    validation_data_pool_dict = copy.deepcopy(data_pool_dict)
+    validation_data_pool_dict['resample_train_entities'] = False
+    if 'VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT' in config:
+        validation_data_pool_dict['max_negative_samples'] = \
+            config['VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT']
 
     training_pool = None
     validation_pool = None
