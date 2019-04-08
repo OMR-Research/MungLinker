@@ -13,13 +13,9 @@ class PoolIterator(object):
     feeds data points to the models' prepare() smoothly (esp. for training).
     """
 
-    def __init__(self, batch_size, prepare=None, k_samples=None, shuffle=True):
+    def __init__(self, batch_size, transform=None, k_samples=None, shuffle=True):
         self.batch_size = batch_size
-
-        if prepare is None:
-            def prepare(x, y):
-                return x, y
-        self.prepare = prepare
+        self.transform = transform
         self.shuffle = shuffle
 
         self.k_samples = k_samples
@@ -54,23 +50,24 @@ class PoolIterator(object):
             pool_items = self.pool[sl]
 
             # When the data pool runs out: re-draw from beginning
-            if len(pool_items[0]) < self.batch_size:
-                n_missing = self.batch_size - len(pool_items[0])
+            # if len(pool_items["mungos_from"]) < self.batch_size:
+            #     n_missing = self.batch_size - len(pool_items[0])
+            #
+            #     additional_pool_items = self.pool[0:n_missing]
+            #
+            #     # Batch building: this is one spot that used to be
+            #     # pool-specific, but now the BatchIterator can deal with
+            #     # combining arbitrary pool outputs as long as they consist
+            #     # of a combination of lists and numpy arrays.
+            #     pool_items = self.combine_pool_items(pool_items, additional_pool_items)
 
-                additional_pool_items = self.pool[0:n_missing]
-
-                # Batch building: this is one spot that used to be
-                # pool-specific, but now the BatchIterator can deal with
-                # combining arbitrary pool outputs as long as they consist
-                # of a combination of lists and numpy arrays.
-                pool_items = self.combine_pool_items(pool_items, additional_pool_items)
-
-            yield self.transform(*pool_items)
+            if self.transform is None:
+                yield pool_items
+            else:
+                yield self.transform(*pool_items)
 
         self.epoch_counter += 1
 
-    def transform(self, *args, **kwargs):
-        return self.prepare(*args, **kwargs)
 
     def combine_pool_items(self, *pool_items_list):
         """Pool items are a tuple of entity batches. Supported "entity"

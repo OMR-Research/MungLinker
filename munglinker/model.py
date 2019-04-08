@@ -278,11 +278,11 @@ class PyTorchNetwork(object):
 
         # Monitors
         batch_train_losses = []
-
+        average_training_loss = numpy.inf
         progress_bar = None
 
         # Training loop, one epoch
-        for current_batch_index, data_point in enumerate(iterator):
+        for current_batch_index, data_batch in enumerate(iterator):
 
             if progress_bar is None:
                 # We create the progress-bar in the first iteration, after iterator-pool has initialized to prevent
@@ -291,7 +291,8 @@ class PyTorchNetwork(object):
                 progress_bar = tqdm(total=number_of_batches,
                                     desc="Training epoch {0} (average loss: ?)".format(current_epoch_index))
 
-            np_inputs, np_targets = data_point
+            np_inputs = data_batch["patches"]  # type: numpy.ndarray
+            np_targets = data_batch["targets"]  # type: numpy.ndarray
 
             # This assumes that the generator does not already
             # return Torch Variables, which the model can however
@@ -348,9 +349,10 @@ class PyTorchNetwork(object):
 
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Validating epoch {0}".format(current_epoch_index))):
-            # Validation iterator might also output the MuNGOs,
-            # for improved evaluation options.
-            mungos_from, mungos_to, np_inputs, np_targets = data_batch  # type: List[CropObject], List[CropObject], numpy.ndarray, numpy.ndarray
+            mungos_from = data_batch["mungos_from"]  # type: List[CropObject]
+            mungos_to = data_batch["mungo_to"]  # type: List[CropObject]
+            np_inputs = data_batch["patches"]  # type: numpy.ndarray
+            np_targets = data_batch["targets"]  # type: numpy.ndarray
 
             inputs = self.__np2torch(np_inputs)
             targets = self.__np2torch(np_targets)
@@ -393,7 +395,8 @@ class PyTorchNetwork(object):
         class_pair_results['all'] = validation_results
         return class_pair_results
 
-    def predict(self, data_pool: PairwiseMungoDataPool, runtime_batch_iterator) -> Tuple[List[CropObject], List[CropObject], List[int]]:
+    def predict(self, data_pool: PairwiseMungoDataPool, runtime_batch_iterator) -> Tuple[
+        List[CropObject], List[CropObject], List[int]]:
         """Runs the model prediction. Expects a data pool and a runtime
         batch iterator.
 
@@ -420,7 +423,10 @@ class PyTorchNetwork(object):
 
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Predicting connections")):
-            mungos_from, mungos_to, np_inputs = data_batch
+            mungos_from = data_batch["mungos_from"]  # type: List[CropObject]
+            mungos_to = data_batch["mungo_to"]  # type: List[CropObject]
+            np_inputs, np_targets = data_batch["patches"]  # type: numpy.ndarray
+
             all_mungos_from.extend(mungos_from)
             all_mungos_to.extend(mungos_to)
 

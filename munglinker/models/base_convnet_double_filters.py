@@ -68,71 +68,12 @@ class BaseConvnetDoubleFilters(MungLinkerNetwork):
         self.fcn = fcn
         self.output_activation = nn.Sigmoid()
 
-    def get_conv_output(self, input):
+    def forward(self, input):
         conv_output = self.cnn(input)
-        return conv_output
-
-    def get_fcn_output_from_conv_output(self, conv_output):
         fcn_input = conv_output.view(-1, 64 * 8 * 16)
         fcn_output = self.fcn(fcn_input)
-        return fcn_output
-
-    def get_output_from_fcn_output(self, fcn_output):
-        return self.output_activation(fcn_output)
-
-    def forward(self, input):
-        conv_output = self.get_conv_output(input)
-        fcn_output = self.get_fcn_output_from_conv_output(conv_output)
-        output = self.get_output_from_fcn_output(fcn_output)
+        output = self.output_activation(fcn_output)
         return output
-
-    def prepare_patch_and_target(self, mungos_from: List[CropObject],
-                                 mungos_to: List[CropObject],
-                                 patches: np.ndarray,
-                                 targets: np.ndarray,
-                                 target_is_onehot: bool = False):
-        """Does not do anything to patches.
-
-        :param mungos_from: list of CropObjects corresponding to the FROM-half
-            of the pairs; the length of the list is ``batch_size``.
-
-        :param mungos_to: list of CropObjects corresponding to the TO-half
-            of the pairs; the length of the list is ``batch_size``.
-
-        :param patches: 4-D batch: ``batch_size x n_channels x patch_rows x patch_columns``
-
-        :param targets: 1-D array of dim ``batch_size``, expected to be binary
-
-        :param target_is_onehot: Expands targets to two-way softmax format.
-
-        :param also_output_mungos: If set, outputs ``mungos_from, mungos_to, patches, targets``
-            -- useful for evaluation, when you need at hand information about all the inputs.
-        """
-        if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
-            target_for_softmax = np.zeros((targets.shape[0], 2))
-            target_for_softmax[range(targets.shape[0]), targets.astype('uint8')] = 1.0
-        elif (not target_is_onehot) and (targets.ndim > 1):
-            target_for_softmax = np.argmax(targets, axis=1)
-        else:
-            target_for_softmax = targets
-
-        return mungos_from, mungos_to, patches, target_for_softmax
-
-    def prepare_train(self, *args, **kwargs):
-        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
-        return X, y
-
-    def prepare_valid(self, *args, **kwargs):
-        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
-        return mungos_from, mungos_to, X, y
-
-    def prepare_test(self, *args, **kwargs):
-        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
-        return mungos_from, mungos_to, X, y
-
-    def prepare_runtime(self, *args, **kwargs):
-        mungos_from, mungos_to, X, y = self.prepare_patch_and_target(*args, **kwargs)
-        return mungos_from, mungos_to, X
 
 
 if __name__ == '__main__':
