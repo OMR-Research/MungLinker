@@ -1,64 +1,6 @@
-from __future__ import print_function, unicode_literals
-import argparse
 import copy
-import logging
-import time
 
 import numpy as np
-
-from muscima.inference_engine_constants import _CONST
-
-# This takes care of multi-threading data loading.
-def threaded_generator(generator, num_cached=10):
-    """
-    Threaded generator
-    """
-    try:
-        import Queue
-    except ImportError:
-        import queue as Queue
-    queue = Queue.Queue(maxsize=num_cached)
-    queue = Queue.Queue(maxsize=num_cached)
-    end_marker = object()
-
-    # define producer
-    def producer():
-        for item in generator:
-            # item = np.array(item)  # if needed, create a copy here
-            queue.put(item)
-        queue.put(end_marker)
-
-    # start producer
-    import threading
-    thread = threading.Thread(target=producer)
-    thread.daemon = True
-    thread.start()
-
-    # run as consumer
-    item = queue.get()
-    while item is not end_marker:
-        yield item
-        queue.task_done()
-        item = queue.get()
-
-
-def generator_from_iterator(iterator):
-    """
-    Compile generator from iterator
-    """
-    for x in iterator:
-        yield x
-
-
-def threaded_generator_from_iterator(iterator, num_cached=10):
-    """
-    Compile threaded generator from iterator
-    """
-    generator = generator_from_iterator(iterator)
-    return threaded_generator(generator, num_cached)
-
-
-# --- class definitions ---
 
 
 class PoolIterator(object):

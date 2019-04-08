@@ -8,6 +8,8 @@ from muscima.cropobject import CropObject
 from torch.autograd import Variable
 from typing import List
 
+from torchsummary import summary
+
 from munglinker.models.munglinker_network import MungLinkerNetwork
 
 
@@ -81,29 +83,17 @@ class BaseConvnet(MungLinkerNetwork):
         # Output through softmax
         self.output_activation = nn.Sigmoid()  # nn.Softmax()
 
-    def get_conv_output(self, input):
+    def forward(self, input):
         conv_output = self.cnn(input)
-        return conv_output
-
-    def get_fcn_output_from_conv_output(self, conv_output):
         fcn_input = conv_output.view(-1, 32 * 8 * 16)
         fcn_output = self.fcn(fcn_input)
-        return fcn_output
-
-    def get_output_from_fcn_output(self, fcn_output):
-        return self.output_activation(fcn_output)
-
-    def forward(self, input):
-        conv_output = self.get_conv_output(input)
-        fcn_output = self.get_fcn_output_from_conv_output(conv_output)
-        output = self.get_output_from_fcn_output(fcn_output)
+        output = self.output_activation(fcn_output)
         return output
 
     def prepare_patch_and_target(self, mungos_from: List[CropObject],
                                  mungos_to: List[CropObject],
                                  patches: np.ndarray,
-                                 targets: np.ndarray,
-                                 target_is_onehot: bool = False):
+                                 targets: np.ndarray):
         """Does not do anything to patches.
 
         :param mungos_from: list of CropObjects corresponding to the FROM-half
@@ -116,15 +106,10 @@ class BaseConvnet(MungLinkerNetwork):
 
         :param targets: 1-D array of dim ``batch_size``, expected to be binary
 
-        :param target_is_onehot: Expands targets to two-way softmax format.
-
         :param also_output_mungos: If set, outputs ``mungos_from, mungos_to, patches, targets``
             -- useful for evaluation, when you need at hand information about all the inputs.
         """
-        if target_is_onehot and (targets.shape != (targets.shape[0], 2)):
-            target_for_softmax = np.zeros((targets.shape[0], 2))
-            target_for_softmax[range(targets.shape[0]), targets.astype('uint8')] = 1.0
-        elif (not target_is_onehot) and (targets.ndim > 1):
+        if targets.ndim > 1:
             target_for_softmax = np.argmax(targets, axis=1)
         else:
             target_for_softmax = targets
@@ -149,33 +134,9 @@ class BaseConvnet(MungLinkerNetwork):
 
 
 if __name__ == '__main__':
-    logging.info('Running model onset_counter in test mode.')
-
-    _batch_size = 6
     patch_shape = 3, 256, 512
-    patch_height = 256
-    patch_width = 512
     patch_channels = 3
 
-    model = BaseConvnet(n_input_channels=patch_channels, leaky_relu=False)
-
-    from munglinker.utils import generate_munglinker_training_batch, plot_batch_patches
-
-    patches, targets = generate_munglinker_training_batch(_batch_size, patch_shape)
-
-    print('patches shape: {}'.format(patches.shape))
-
-    X, y = model.prepare_patch_and_target([], [], patches, targets)
-
-    plot_batch_patches(patches, targets)
-
-    X_torch = Variable(torch.from_numpy(X).float())
-    y_torch = Variable(torch.from_numpy(y).float())
-
-    print('X.shape = {}'.format(X.shape))
-    print('y.shape = {}'.format(y.shape))
-
-    y_pred = model(X_torch)
-
-    print('y_true = {}'.format(y_torch))
-    print('y_pred = {}'.format(y_pred))
+    model = BaseConvnet(n_input_channels=patch_channels)
+    print(model)
+    summary(model, patch_shape, device="cpu")

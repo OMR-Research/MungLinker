@@ -111,16 +111,16 @@ def main(args):
     previously_best_validation_loss = np.inf
 
     if args.continue_training:
-        logging.info('Attempting to initialize from checkpoint: {0}'.format(checkpoint_export_file))
         try:
             checkpoint = torch.load(checkpoint_export_file)
             model.net.load_state_dict(checkpoint['model_state_dict'])
             model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             initial_epoch = checkpoint['epoch'] + 1
             previously_best_validation_loss = checkpoint['best_validation_loss']
+            print('Loaded model from checkpoint: {0}. Resuming at epoch {1}'.format(checkpoint_export_file,
+                                                                                    initial_epoch))
         except OSError as e:
-            logging.warning(
-                'Error during loading of previously saved checkpoint {0}: {1}'.format(checkpoint_export_file, e))
+            print('Error during loading of previously saved checkpoint {0}: {1}'.format(checkpoint_export_file, e))
 
     data = load_munglinker_data(
         mung_root=args.mung_root,
