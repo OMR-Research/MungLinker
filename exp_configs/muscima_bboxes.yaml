@@ -8,10 +8,6 @@ THRESHOLD_NEGATIVE_DISTANCE: 200
 # Restriction to avoid imbalanced dataset of having 10 negatives for 1 positive example
 MAX_NEGATIVE_EXAMPLES_PER_OBJECT: -1
 
-# Resampling applies only to the training pool, not the validation pool.
-# Randomly select a different example each epoch
-RESAMPLE_EACH_EPOCH: TRUE
-
 # Restricting negative samples only to pairs permissible by a given muscima grammar
 RESTRICT_TO_GRAMMAR: ../resources/mff-muscima-mlclasses-annot.deprules
 

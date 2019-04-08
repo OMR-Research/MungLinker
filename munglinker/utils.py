@@ -15,43 +15,6 @@ from munglinker.models.multitask_fully_shared import MultitaskFullyShared
 from munglinker.models.multitask_partially_shared import MultitaskPartiallyShared
 from munglinker.models.munglinker_network import MungLinkerNetwork
 
-__version__ = "0.0.1"
-__author__ = "Jan Hajic jr."
-
-
-PRIMITIVES = ["16th_rest",
-              "32th_rest",
-              "64th_and_higher_rest",
-              "8th_rest",
-              "barlines",
-              "beam",
-              "c-clef",
-              "double_flat",
-              "double_sharp",
-              "duration-dot",
-              "f-clef",
-              "flags",
-              "flat",
-              "g-clef",
-              "half_rest",
-              "ledger_line",
-              "natural",
-              "noteheads",
-              "quarter_rest",
-              "sharp",
-              "stem",
-              "whole_rest"]
-
-NOTE_PRIMITIVES = ["noteheads", "stem", "beam", "flags"]
-
-CLEF_PRIMITIVES = ["c-clef", "g-clef", "f-clef"]
-
-RESULTS_META_ROOT = '/Users/hajicj/jku/omr_baseline_matthias'
-MULTICHANNEL_ROOT = '/Users/hajicj/jku/omr_baseline_matthias'
-
-
-##############################################################################
-
 
 def build_experiment_name(args):
     split = os.path.splitext(os.path.basename(args.split_file))[0]
@@ -429,7 +392,6 @@ def config2data_pool_dict(config):
     data_pool_dict = {
         'max_edge_length': config['THRESHOLD_NEGATIVE_DISTANCE'],
         'max_negative_samples': config['MAX_NEGATIVE_EXAMPLES_PER_OBJECT'],
-        'resample_train_entities': config['RESAMPLE_EACH_EPOCH'],
         'patch_size': (config['PATCH_HEIGHT'], config['PATCH_WIDTH']),
         'zoom': config['IMAGE_ZOOM']
     }

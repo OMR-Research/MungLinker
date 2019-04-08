@@ -393,7 +393,7 @@ class PyTorchNetwork(object):
         class_pair_results['all'] = validation_results
         return class_pair_results
 
-    def predict(self, data_pool, runtime_batch_iterator) -> Tuple[List[CropObject], List[CropObject], List[int]]:
+    def predict(self, data_pool: PairwiseMungoDataPool, runtime_batch_iterator) -> Tuple[List[CropObject], List[CropObject], List[int]]:
         """Runs the model prediction. Expects a data pool and a runtime
         batch iterator.
 
@@ -410,7 +410,6 @@ class PyTorchNetwork(object):
             method, you will have to take care of actually adding the predicted
             edges into the graphs -- split the MuNG pairs by documents, etc.
         """
-        data_pool.resample_train_entities = False
         iterator = runtime_batch_iterator(data_pool)
         number_of_batches = ceil(len(data_pool) / runtime_batch_iterator.batch_size)
         print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches))

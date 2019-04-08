@@ -26,6 +26,7 @@ from munglinker.utils import midi_matrix_to_midi
 from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
 import numpy as np
 
+
 class MunglinkerRunner(object):
     """The MunglinkerRunner defines the Munglinker component interface. It has a run()
     method that takes a MuNG (the whole graph) and outputs a new MuNG with the same
@@ -33,8 +34,7 @@ class MunglinkerRunner(object):
     """
 
     def __init__(self, model: PyTorchNetwork, config,
-                 runtime_batch_iterator: PoolIterator,
-                 replace_all_edges=True):
+                 runtime_batch_iterator: PoolIterator):
         """Initialize the Munglinker runner.
 
         :param model: A PyTorchNetwork() object with a net. Its predict()
@@ -56,7 +56,6 @@ class MunglinkerRunner(object):
         # into a data pool.
         data_pool_dict = config2data_pool_dict(self.config)
         data_pool_dict['max_negative_samples'] = -1
-        data_pool_dict['resample_train_entities'] = False
         if 'grammar' not in data_pool_dict:
             logging.warning('MunglinkerRunner expects a grammar to restrict'
                             ' edge candidates. Without a grammar, it will take'
@@ -67,7 +66,6 @@ class MunglinkerRunner(object):
             self.masks_to_bounding_boxes = self.config['TRAIN_ON_BOUNDING_BOXES']
 
         self.data_pool_dict = data_pool_dict
-        self.replace_all_edges = replace_all_edges
 
     def run(self, image_file, mung: NotationGraph) -> NotationGraph:
         image = np.array(Image.open(image_file).convert('1')).astype('uint8')
@@ -88,10 +86,9 @@ class MunglinkerRunner(object):
         # we have the luxury that all the mung pairs belong to the same
         # document, and we can just re-do the edges.
         mungo_copies = [copy.deepcopy(m) for m in mung.cropobjects]
-        if self.replace_all_edges:
-            for m in mungo_copies:
-                m.outlinks = []
-                m.inlinks = []
+        for m in mungo_copies:
+            m.outlinks = []
+            m.inlinks = []
 
         notation_graph = NotationGraph(mungo_copies)
         id_to_crop_object_mapping = {c.objid: c for c in notation_graph.cropobjects}
@@ -101,9 +98,7 @@ class MunglinkerRunner(object):
                 logging.debug('Adding edge: {} --> {}'.format(mungo_from.objid,
                                                               mungo_to.objid))
                 self.add_edge_in_graph(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping)
-            else:
-                if self.graph_has_edge(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping):
-                    notation_graph.remove_edge(mungo_from.objid, mungo_to.objid)
+
 
         return notation_graph
 
@@ -128,30 +123,10 @@ class MunglinkerRunner(object):
             raise NotationGraphError('Found {0} in inlinks of {1}, but not {1} in outlinks of {0}!'
                                      ''.format(from_node, to_node))
 
+        id_to_crop_object_mapping[from_node].inlinks.append(to_node)
         id_to_crop_object_mapping[from_node].outlinks.append(to_node)
         id_to_crop_object_mapping[to_node].inlinks.append(from_node)
-
-    def graph_has_edge(self, from_node, to_node, id_to_crop_object_mapping: Dict[int, CropObject]):
-        if from_node not in id_to_crop_object_mapping:
-            logging.warning('Asking for object {}, which is not in graph.'
-                            ''.format(from_node))
-        if to_node not in id_to_crop_object_mapping:
-            logging.warning('Asking for object {}, which is not in graph.'
-                            ''.format(to_node))
-
-        if to_node in id_to_crop_object_mapping[from_node].outlinks:
-            if from_node in id_to_crop_object_mapping[to_node].inlinks:
-                return True
-            else:
-                raise NotationGraphError('graph_has_edge({}, {}): found {} in outlinks'
-                                         ' of {}, but not {} in inlinks of {}!'
-                                         ''.format(from_node, to_node, to_node, from_node, from_node, to_node))
-        elif from_node in id_to_crop_object_mapping[to_node].inlinks:
-            raise NotationGraphError('graph_has_edge({}, {}): found {} in inlinks'
-                                     ' of {}, but not {} in outlinks of {}!'
-                                     ''.format(from_node, to_node, from_node, to_node, to_node, from_node))
-        else:
-            return False
+        id_to_crop_object_mapping[to_node].outlinks.append(from_node)
 
     def model_output_to_midi(self, output_repr):
         return midi_matrix_to_midi(output_repr)
@@ -181,11 +156,8 @@ def build_argument_parser():
                              ' directory, expecting --input_image to also'
                              ' be a directory with correspondingly named'
                              ' image files (like for training).')
-    parser.add_argument('-o', '--output_mung', required=True,
-                        help='The MuNG with inferred edges should be exported'
-                             ' to this file. If this is a directory, will instead'
-                             ' export all the output MuNGs here, with names copied'
-                             ' from the input MuNGs.')
+    parser.add_argument('-o', '--output_mung_directory', required=True,
+                        help='The directory that will contain the MuNGs.')
     parser.add_argument('--visualize', action='store_true',
                         help='If set, will plot the image and output MIDI'
                              '[NOT IMPLEMENTED].')
@@ -233,11 +205,9 @@ if __name__ == '__main__':
         mung_linker_network.load_state_dict(checkpoint['model_state_dict'])
         model = PyTorchNetwork(net=mung_linker_network)
 
-    logging.info('Initializing runner...')
     runner = MunglinkerRunner(model=model,
                               config=config,
-                              runtime_batch_iterator=runtime_batch_iterator,
-                              replace_all_edges=True)
+                              runtime_batch_iterator=runtime_batch_iterator)
 
     image_files = []
     input_mung_files = []
@@ -254,18 +224,14 @@ if __name__ == '__main__':
     elif os.path.isdir(args.input_mung):
         input_mung_files.extend(glob(args.input_mung + "/*.xml"))
 
-    if os.path.isfile(args.output_mung):
-        output_mung_files = [args.output_mung]
-        os.makedirs(os.path.dirname(args.output_mung), exist_ok=True)
-    else:
-        output_mung_files = [os.path.join(args.output_mung, os.path.basename(f))
-                             for f in input_mung_files]
-        os.makedirs(args.output_mung, exist_ok=True)
+    output_mung_files = [os.path.join(args.output_mung_directory, os.path.basename(f)) for f in input_mung_files]
+    os.makedirs(args.output_mung_directory, exist_ok=True)
 
     if len(image_files) != len(input_mung_files):
         raise Exception("Length of images and MuNGs is not the same")
 
-    for i, (image_file, input_mung_file, output_mung_file) in enumerate(zip(image_files, input_mung_files, output_mung_files)):
+    for i, (image_file, input_mung_file, output_mung_file) in enumerate(
+            zip(image_files, input_mung_files, output_mung_files)):
         input_mungos = parse_cropobject_list(input_mung_file)
         input_mung = NotationGraph(input_mungos)
 

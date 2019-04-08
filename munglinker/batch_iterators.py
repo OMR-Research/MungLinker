@@ -87,9 +87,9 @@ class PoolIterator(object):
     def __call__(self, pool):
         self.pool = pool
         if self.k_samples is None:
-            self.k_samples = self.pool.shape[0]
+            self.k_samples = len(self.pool)
         self.n_batches = self.k_samples // self.batch_size
-        self.n_epochs = max(1, self.pool.shape[0] // self.k_samples)
+        self.n_epochs = max(1, len(self.pool) // self.k_samples)
 
         return self
 
@@ -102,7 +102,7 @@ class PoolIterator(object):
 
         # shuffle train data before each epoch
         if self.shuffle and idx_epoch == 0 and not self.epoch_counter == 0:
-            self.pool.reset_batch_generator()
+            self.pool.shuffle_batches()
 
         for i in range(int((n_samples + bs - 1) / bs)):
 
@@ -165,67 +165,3 @@ class PoolIterator(object):
                     output[e_idx] = np.concatenate((output[e_idx], entity))
 
         return output
-
-
-##############################################################################
-
-
-def build_argument_parser():
-    parser = argparse.ArgumentParser(description=__doc__, add_help=True,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Turn on INFO messages.')
-    parser.add_argument('--debug', action='store_true',
-                        help='Turn on DEBUG messages.')
-
-    return parser
-
-
-def main(args):
-    logging.info('Starting main...')
-    _start_time = time.time()
-
-    mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
-    images_root = '/Users/hajicj/data/MUSCIMA++/v0.9/data/fulls'
-
-    from munglinker.data_pool import load_munglinker_data_lite, PairwiseMungoDataPool
-    from munglinker.models.base_convnet import BaseConvnet
-    from munglinker.utils import plot_batch_patches
-
-    mungs, images = load_munglinker_data_lite(mung_root, images_root, max_items=1,
-                                              exclude_classes=_CONST.STAFF_CROPOBJECT_CLSNAMES)
-    data_pool = PairwiseMungoDataPool(mungs=mungs, images=images,
-                                      resample_train_entities=True,
-                                      max_negative_samples=1)
-    data_pool.reset_batch_generator()
-
-    model = BaseConvnet(batch_size=300)
-    train_batch_iter = model.train_batch_iterator()
-
-    iterator = train_batch_iter(data_pool)
-    generator = threaded_generator_from_iterator(iterator)
-
-    n_batches = 10
-
-    for batch_idx, _data_point in enumerate(generator):
-        np_inputs, np_targets = _data_point
-        plot_batch_patches(*_data_point)
-        if batch_idx + 1 == n_batches:
-            break
-
-    _end_time = time.time()
-    logging.info('batch_iterators.py done in {0:.3f} s'
-                 ''.format(_end_time - _start_time))
-
-
-if __name__ == '__main__':
-    parser = build_argument_parser()
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-    if args.debug:
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
-
-    main(args)

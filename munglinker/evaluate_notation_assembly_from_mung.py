@@ -9,6 +9,9 @@ the notation assembly stage of the OMR pipeline.
 from __future__ import print_function, unicode_literals, division
 
 from glob import glob
+from typing import List
+
+from muscima.cropobject import CropObject
 
 __version__ = "0.0.1"
 __author__ = "Jorge Calvo-Zaragoza"
@@ -72,7 +75,7 @@ def match(p_obj, r_obj, threshold=0.7):
     return False
 
 
-def get_object_matching_pairs(predicted_objects, reference_objects):
+def get_object_matching_pairs(predicted_objects: List[CropObject], reference_objects: List[CropObject]):
     pairs = []
 
     for p_obj in predicted_objects:
@@ -88,11 +91,21 @@ def cropobject_dict_from_list(cropobject_list):
     return {cropobject.objid: cropobject for cropobject in cropobject_list}
 
 
+def make_inlinks_and_outlinks_bidirectional(crop_objects: List[CropObject]):
+    for crop_object in crop_objects:
+        links = list(set(crop_object.outlinks + crop_object.inlinks))
+        crop_object.inlinks = links
+        crop_object.outlinks = links
+
+
 def evaluate_result(mung_reference_file, predicted_mung_file):
     print("Computing statistics for {0}".format(predicted_mung_file))
     # Read crop objects list
     reference_objects = parse_cropobject_list(mung_reference_file)
     predicted_objects = parse_cropobject_list(predicted_mung_file)
+
+    make_inlinks_and_outlinks_bidirectional(reference_objects)
+
     precision, recall, f1_score, true_positives, false_positives, false_negatives = \
         compute_statistics_on_crop_objects(reference_objects, predicted_objects)
     print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))

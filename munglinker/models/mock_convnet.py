@@ -32,9 +32,6 @@ class MockNetwork(MungLinkerNetwork):
         pass
 
     def predict(self, data_pool, runtime_batch_iterator):
-        # Ensure correct data pool behavior.
-        data_pool.resample_train_entities = False
-
         # Initialize data feeding from iterator
         iterator = runtime_batch_iterator(data_pool)
         generator = (x for x in iterator)  # No threaded generator

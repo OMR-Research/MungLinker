@@ -1,11 +1,6 @@
-from __future__ import print_function, unicode_literals
-
-import argparse
 import copy
 import logging
 import os
-import random
-import time
 from glob import glob
 from typing import List, Tuple, Dict
 
@@ -15,20 +10,11 @@ from PIL import Image
 from muscima.cropobject import cropobject_distance, bbox_intersection, CropObject
 from muscima.grammar import DependencyGrammar
 from muscima.graph import NotationGraph
-from muscima.inference_engine_constants import _CONST
 from muscima.io import parse_cropobject_list
 from tqdm import tqdm
 
 from munglinker.utils import config2data_pool_dict, load_grammar
 
-##############################################################################
-# These functions are concerned with data point extraction for parser training.
-# Actually, it could be wrapped by a DataPool.
-
-distances_cache_per_file = {}
-
-
-##############################################################################
 
 class MunglinkerDataError(ValueError):
     pass
@@ -51,7 +37,6 @@ class PairwiseMungoDataPool(object):
                  max_negative_samples: int,
                  patch_size: Tuple[int, int],
                  zoom: float,
-                 resample_train_entities: bool = False,
                  grammar: DependencyGrammar = None):
         """Initialize the data pool.
 
@@ -69,13 +54,6 @@ class PairwiseMungoDataPool(object):
         :param max_negative_samples: The maximum number of mungos sampled
             as negative examples per mungo.
 
-        :param resample_train_entities: If set, will re-run training entity
-            sampling after the pool is exhausted. Intended to be used in
-            combination with a lower number of negative samples per positive
-            one, so that the network sees a lot of different negative
-            samples while you still have control over the positive/negative
-            sample balance.
-
         :param patch_size: What the size of the extracted patch should
             be (after applying zoom), specified as ``(rows, columns)``.
 
@@ -90,8 +68,6 @@ class PairwiseMungoDataPool(object):
         self.max_edge_length = max_edge_length
         self.max_negative_samples = max_negative_samples
 
-        self.resample_train_entities = resample_train_entities
-
         self.patch_size = patch_size
         self.patch_height = patch_size[0]
         self.patch_width = patch_size[1]
@@ -103,14 +79,12 @@ class PairwiseMungoDataPool(object):
 
         self.grammar = grammar
 
-        self.shape = None
+        self.length = 0
+        self.distances_cache_per_file = {}
         self.prepare_train_entities()
-        self.reset_batch_generator(ignore_resample=True)
-
-        logging.info('Data pool prepared with shape {}'.format(self.shape))
 
     def __len__(self):
-        return self.shape[0]
+        return self.length
 
     def __getitem__(self, key):
         if key.__class__ == int:
@@ -124,20 +98,16 @@ class PairwiseMungoDataPool(object):
         targets = np.zeros(len(batch_entities))
         mungos_from = []
         mungos_to = []
-        for i_entity, (i_image, i_mungo_pair) in enumerate(batch_entities):
-            m_from, m_to = self.all_mungo_pairs[i_mungo_pair]
-            mungos_from.append(m_from)
-            mungos_to.append(m_to)
-            patch = self.load_patch(i_image, m_from, m_to)
+        for i_entity, (image_index, mungo_pair_index) in enumerate(batch_entities):
+            mungo_from, mungo_to = self.all_mungo_pairs[mungo_pair_index]
+            mungos_from.append(mungo_from)
+            mungos_to.append(mungo_to)
+            patch = self.load_patch(image_index, mungo_from, mungo_to)
             patches_batch[i_entity] = patch
 
-            if m_to.objid in m_from.outlinks:
+            mungos_are_connected = mungo_to.objid in mungo_from.outlinks or mungo_from.objid in mungo_to.outlinks
+            if mungos_are_connected:
                 targets[i_entity] = 1
-
-            logging.debug('DataPool: Y: {}\tFROM: {}/{}, TO: {}/{}'
-                          ''.format(int(targets[i_entity]),
-                                    m_from.objid, m_from.clsname,
-                                    m_to.objid, m_to.clsname))
 
         return [mungos_from, mungos_to, patches_batch, targets]
 
@@ -160,21 +130,11 @@ class PairwiseMungoDataPool(object):
             for m in mung.cropobjects:
                 m.scale(zoom=self.zoom)
 
-    def reset_batch_generator(self, ignore_resample=False):
-        """Reset data pool with new random reordering of ``train_entities``.
-        """
-        if self.resample_train_entities and not ignore_resample:
-            logging.info('Resampling data pool.')
-            self.prepare_train_entities()
-
-        if self.resample_train_entities:
-            # Shuffling the train entities shuffles the order of indices
-            # into self._mungo_pair_map that contains the actual MuNGOs,
-            # and at the same time preserves the pairing of the MuNGo pairs
-            # to the respective images.
-            permutation = [int(i) for i in np.random.permutation(len(self.train_entities))]
-            shuffled_train_entities = [self.train_entities[idx] for idx in permutation]
-            self.train_entities = shuffled_train_entities
+    def shuffle_batches(self):
+        """ Shuffles the order in which the batches will be iterated """
+        permutation = [int(i) for i in np.random.permutation(len(self.train_entities))]
+        shuffled_train_entities = [self.train_entities[idx] for idx in permutation]
+        self.train_entities = shuffled_train_entities
 
     def prepare_train_entities(self):
         """Extract the triplets.
@@ -185,43 +145,28 @@ class PairwiseMungoDataPool(object):
         and ``m_to`` are one instance of sampled mungo pairs.
         """
         self.train_entities = []
-        self.all_mungo_pairs = []
-        n_entities = 0
+        self.all_mungo_pairs = []  # type: List[Tuple[CropObject, CropObject]]
+        number_of_samples = 0
         for mung_index, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs")):
-            object_pairs = PairwiseMungoDataPool.get_object_pairs(
+            object_pairs = self.get_all_neighboring_object_pairs(
                 mung.cropobjects,
                 max_object_distance=self.max_edge_length,
-                max_negative_samples=self.max_negative_samples,
                 grammar=self.grammar)
             for (m_from, m_to) in object_pairs:
-                # Try extracting a target patch. If this fails, don't add
-                # the entity.
-                try:
-                    self.load_patch(mung_index, m_from, m_to)
-                except MunglinkerDataError:
-                    logging.info('Object pair {} --> {} does not fit within patch; skipped.'
-                                 ''.format(m_from.uid, m_to.uid))
-                    continue
-
                 self.all_mungo_pairs.append((m_from, m_to))
-                self.train_entities.append([mung_index, n_entities])
-                n_entities += 1
+                self.train_entities.append([mung_index, number_of_samples])
+                number_of_samples += 1
 
-        # n_items x n_outputs x
-        self.shape = [len(self.train_entities)]
+        self.length = number_of_samples
 
-    def load_patch(self, i_image, mungo_from, mungo_to):
-        image = self.images[i_image]
+    def load_patch(self, image_index: int, mungo_from: CropObject, mungo_to: CropObject):
+        image = self.images[image_index]
         patch = self.get_x_patch(image, mungo_from, mungo_to)
         return patch
 
-    def get_x_patch(self, image, mungo_from, mungo_to):
+    def get_x_patch(self, image, mungo_from: CropObject, mungo_to: CropObject):
         """
         Assumes image is larger than patch.
-
-        :param image:
-        :param mungo_from:
-        :param mungo_to:
 
         :return: A 3 * patch_height * patch_width array. Channel 0
             is the input image, channel 1 is the from-mungo mask,
@@ -298,16 +243,15 @@ class PairwiseMungoDataPool(object):
 
         return output
 
-    @staticmethod
-    def get_closest_objects(cropobjects: List[CropObject], threshold) -> Dict[CropObject, List[CropObject]]:
+    def get_closest_objects(self, cropobjects: List[CropObject], threshold) -> Dict[CropObject, List[CropObject]]:
         """For each pair of cropobjects, compute the closest distance between their
         bounding boxes.
 
         :returns: A dict of dicts, indexed by objid, then objid, then distance.
         """
         document = cropobjects[0].doc
-        if document in distances_cache_per_file:
-            return distances_cache_per_file[document]
+        if document in self.distances_cache_per_file:
+            return self.distances_cache_per_file[document]
 
         close_objects = {}
         for c in cropobjects:
@@ -325,85 +269,14 @@ class PairwiseMungoDataPool(object):
             unique_neighbors = list(dict.fromkeys(neighbors))
             close_objects[key] = unique_neighbors
 
-        distances_cache_per_file[document] = close_objects
+        self.distances_cache_per_file[document] = close_objects
         return close_objects
 
-    @staticmethod
-    def negative_example_pairs(cropobjects: List[CropObject],
-                               threshold: int,
-                               max_per_object: int,
-                               grammar=None):
-        """Samples pairs of cropobjects that are *not* connected by an edge.
+    def get_all_neighboring_object_pairs(self, cropobjects: List[CropObject],
+                                         max_object_distance,
+                                         grammar=None) -> List[Tuple[CropObject, CropObject]]:
+        close_neighbors = self.get_closest_objects(cropobjects, max_object_distance)
 
-        :param cropobjects: A list of MuNG objects available for pair sampling.
-
-        :param threshold: Maximum distance for a pair of MuNGos to be considered.
-
-        :param max_per_object: At most this many negative samples will be output
-            per object.
-
-        :param grammar: If given, will only add negative pairs such that an edge
-            between them would be permitted by the grammar.
-
-        :return: A list of tuples of (from, to) MuNG objects that are *not* linked.
-        """
-        close_neighbors = PairwiseMungoDataPool.get_closest_objects(cropobjects, threshold)
-
-        # Exclude linked ones
-        negative_example_pairs_dict = {}
-        for c in close_neighbors:
-            negative_example_pairs_dict[c] = [d for d in close_neighbors[c] if d.objid not in c.outlinks]
-
-            # Filter with grammar.
-            if grammar is not None:
-                negative_example_pairs_dict[c] = [d for d in negative_example_pairs_dict[c]
-                                                  if grammar.validate_edge(c.clsname, d.clsname)]
-
-        # Downsample,
-        # -----------
-        # but intelligently: there should be more weight on closer objects, as they should
-        # be represented more (should they?) [NOT IMPLEMENTED].
-        if (max_per_object is not None) and (max_per_object > 0):
-            for c in close_neighbors:
-                random.shuffle(negative_example_pairs_dict[c])
-                negative_example_pairs_dict[c] = negative_example_pairs_dict[c][:max_per_object]
-
-        negative_examples = []
-        for c in negative_example_pairs_dict:
-            negative_examples.extend([(c, d) for d in negative_example_pairs_dict[c]])
-
-        return negative_examples
-
-    @staticmethod
-    def positive_example_pairs(cropobjects):
-        _cdict = {c.objid: c for c in cropobjects}
-        positive_example_pairs = []
-        for c in cropobjects:
-            for o in c.outlinks:
-                positive_example_pairs.append((c, _cdict[o]))
-        return positive_example_pairs
-
-    @staticmethod
-    def get_object_pairs(cropobjects: List[CropObject],
-                         max_object_distance,
-                         max_negative_samples,
-                         grammar=None):
-        negative_pairs = PairwiseMungoDataPool.negative_example_pairs(cropobjects,
-                                                                      threshold=max_object_distance,
-                                                                      max_per_object=max_negative_samples,
-                                                                      grammar=grammar)
-        positive_pairs = PairwiseMungoDataPool.positive_example_pairs(cropobjects)
-        print('Object pair extraction: {} positive samples, {} negative samples.'
-              ''.format(len(positive_pairs), len(negative_pairs)))
-        return negative_pairs + positive_pairs
-
-    @staticmethod
-    def get_all_object_pairs(cropobjects: List[CropObject],
-                             max_object_distance,
-                             grammar=None) -> List[Tuple[CropObject, CropObject]]:
-        close_neighbors = PairwiseMungoDataPool.get_closest_objects(cropobjects, max_object_distance)
-
-        # Exclude linked ones
         example_pairs_dict = {}
         for c in close_neighbors:
             if grammar is None:
@@ -415,6 +288,19 @@ class PairwiseMungoDataPool(object):
         for c in example_pairs_dict:
             for d in example_pairs_dict[c]:
                 examples.append((c, d))
+
+        # # Validate that every link from the ground-truth also has a candidate in the examples - all positives are included
+        # id_to_cropobject_mapping = {cropobject.objid: cropobject for cropobject in cropobjects}
+        # missing_edges = 0
+        # for cropobject in cropobjects:
+        #     for outlink_id in cropobject.outlinks:
+        #         pair1 = (cropobject, id_to_cropobject_mapping[outlink_id])
+        #         pair2 = (id_to_cropobject_mapping[outlink_id], cropobject)
+        #
+        #         if pair1 in examples or pair2 in examples:
+        #             continue
+        #         else:
+        #             missing_edges += 1
 
         return examples
 
@@ -457,7 +343,7 @@ class PairwiseMungoDataPool(object):
 
 ##############################################################################
 
-# Techcnically these methods are the same, but there might in the future
+# Technically these methods are the same, but there might in the future
 # be different validation checks.
 
 def load_split(split_file):
@@ -598,7 +484,6 @@ def load_munglinker_data(mung_root, images_root, split_file,
         train_on_bounding_boxes = config['TRAIN_ON_BOUNDING_BOXES']
 
     validation_data_pool_dict = copy.deepcopy(data_pool_dict)
-    validation_data_pool_dict['resample_train_entities'] = False
     if 'VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT' in config:
         validation_data_pool_dict['max_negative_samples'] = \
             config['VALIDATION_MAX_NEGATIVE_EXAMPLES_PER_OBJECT']
@@ -632,67 +517,3 @@ def load_munglinker_data(mung_root, images_root, split_file,
         test_pool = PairwiseMungoDataPool(mungs=te_mungs, images=te_images, **data_pool_dict)
 
     return dict(train=training_pool, valid=validation_pool, test=test_pool)
-
-
-##############################################################################
-
-
-def build_argument_parser():
-    parser = argparse.ArgumentParser(description=__doc__, add_help=True,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Turn on INFO messages.')
-    parser.add_argument('--debug', action='store_true',
-                        help='Turn on DEBUG messages.')
-
-    return parser
-
-
-def main(args):
-    logging.info('Starting main...')
-    _start_time = time.time()
-
-    # Your code goes here
-    mung_root = '/Users/hajicj/data/MUSCIMA++/v1.0.1/data/cropobjects_complete'
-    images_root = '/Users/hajicj/data/MUSCIMA++/v0.9/data/fulls'
-
-    resources_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../resources')
-    grammar_file = os.path.join(resources_root, 'mff-muscima-mlclasses-annot.deprules')
-    grammar = load_grammar(grammar_file)
-
-    mungs, images = load_munglinker_data_lite(mung_root, images_root,
-                                              max_items=1,
-                                              exclude_classes=_CONST.STAFFLINE_CROPOBJECT_CLSNAMES)
-
-    data_pool = PairwiseMungoDataPool(mungs=mungs, images=images, grammar=grammar)
-    print('Entities after loading data pool: {}'.format(len(data_pool.train_entities)))
-
-    import matplotlib.pyplot as plt
-
-    batch_size = 1
-    n_batches = 10
-    n_positive = 0
-    for k in range(10):
-        X, y = data_pool[k * batch_size:(k + 1) * batch_size]
-        X0_sum = np.sum(X[0], axis=0)
-        plt.imshow(X0_sum, cmap='gray', interpolation='nearest')
-        plt.show()
-        n_positive += y.sum()
-
-    print('Positive example ratio: {}'.format(n_positive / (n_batches * batch_size)))
-
-    _end_time = time.time()
-    logging.info('data_pools.py done in {0:.3f} s'.format(_end_time - _start_time))
-
-
-if __name__ == '__main__':
-    parser = build_argument_parser()
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-    if args.debug:
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
-
-    main(args)

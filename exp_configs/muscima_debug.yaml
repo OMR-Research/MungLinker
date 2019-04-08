@@ -7,8 +7,6 @@ THRESHOLD_NEGATIVE_DISTANCE: 200
 
 MAX_NEGATIVE_EXAMPLES_PER_OBJECT: -1
 
-RESAMPLE_EACH_EPOCH: FALSE
-
 # At validation time, we should test against the runtime
 # situation, where we will classify every pair within
 # THRESHOLD_NEGATIVE_DISTANCE
