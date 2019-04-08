@@ -80,7 +80,6 @@ class PairwiseMungoDataPool(object):
         self.grammar = grammar
 
         self.length = 0
-        self.distances_cache_per_file = {}
         self.prepare_train_entities()
 
     def __len__(self):
@@ -249,10 +248,6 @@ class PairwiseMungoDataPool(object):
 
         :returns: A dict of dicts, indexed by objid, then objid, then distance.
         """
-        document = cropobjects[0].doc
-        if document in self.distances_cache_per_file:
-            return self.distances_cache_per_file[document]
-
         close_objects = {}
         for c in cropobjects:
             close_objects[c] = []
@@ -269,7 +264,6 @@ class PairwiseMungoDataPool(object):
             unique_neighbors = list(dict.fromkeys(neighbors))
             close_objects[key] = unique_neighbors
 
-        self.distances_cache_per_file[document] = close_objects
         return close_objects
 
     def get_all_neighboring_object_pairs(self, cropobjects: List[CropObject],
