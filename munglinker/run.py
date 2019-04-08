@@ -99,7 +99,8 @@ class MunglinkerRunner(object):
 
         return notation_graph
 
-    def add_edge_in_graph(self, from_node: CropObject, to_node: CropObject,
+    @staticmethod
+    def add_edge_in_graph(from_node: CropObject, to_node: CropObject,
                           id_to_crop_object_mapping: Dict[int, CropObject]):
         """Add an edge between the MuNGOs with objids ``fr --> to``.
             If the edge is already in the graph, warns and does nothing."""

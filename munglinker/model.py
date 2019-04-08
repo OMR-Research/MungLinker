@@ -1,4 +1,5 @@
 import collections
+import copy
 import logging
 import os
 import pprint
@@ -378,6 +379,34 @@ class PyTorchNetwork(object):
                 validation_mungos_from.extend(mungos_from)
                 validation_mungos_to.extend(mungos_to)
 
+        for mung in data_pool.mungs:
+            # One mung is one file
+            reference_crop_objects = mung.cropobjects # type: List[CropObject]
+            doc = reference_crop_objects[0].doc
+            inference_crop_objects = [copy.deepcopy(m) for m in mung.cropobjects]
+            for m in inference_crop_objects:
+                m.outlinks = []
+                m.inlinks = []
+
+            id_to_crop_object_mapping = {c.objid: c for c in inference_crop_objects}
+            indices = [i for i, m in enumerate(validation_mungos_from) if m.doc == doc]
+            mungos_from_this_file = [validation_mungos_from[i] for i in indices]
+            mungos_to_this_file = [validation_mungos_to[i] for i in indices]
+            output_classes = [validation_predicted_classes[i] for i in indices]
+            from munglinker.run import MunglinkerRunner
+            for mungo_from, mungo_to, output_class in zip(mungos_from_this_file, mungos_to_this_file, output_classes):
+                has_edge = output_class == 1
+                if has_edge:
+                    MunglinkerRunner.add_edge_in_graph(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping)
+
+            from munglinker.evaluate_notation_assembly_from_mung import compute_statistics_on_crop_objects
+            precision, recall, f1_score, true_positives, false_positives, false_negatives = \
+                compute_statistics_on_crop_objects(reference_crop_objects, inference_crop_objects)
+            print("Statistics for " + doc)
+            print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))
+            print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives, false_positives,
+                                                                               false_negatives))
+
         # Compute evaluation metrics aggregated over validation set.
         aggregated_metrics = self.__evaluate_classification(validation_predicted_classes,
                                                             validation_target_classes)
@@ -425,7 +454,7 @@ class PyTorchNetwork(object):
                                                               desc="Predicting connections")):
             mungos_from = data_batch["mungos_from"]  # type: List[CropObject]
             mungos_to = data_batch["mungo_to"]  # type: List[CropObject]
-            np_inputs, np_targets = data_batch["patches"]  # type: numpy.ndarray
+            np_inputs = data_batch["patches"]  # type: numpy.ndarray
 
             all_mungos_from.extend(mungos_from)
             all_mungos_to.extend(mungos_to)
