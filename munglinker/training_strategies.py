@@ -10,8 +10,7 @@ class PyTorchTrainingStrategy(object):
                  batch_size=2,
                  improvement_patience=20,
                  optimizer_class=Adam,
-                 loss_fn_class=BCELoss,
-                 loss_fn_kwargs=dict(),
+                 loss_function=BCELoss(),
                  best_model_by_fscore=False,
                  n_epochs_per_checkpoint=10,
                  checkpoint_export_file=None,
@@ -40,11 +39,7 @@ class PyTorchTrainingStrategy(object):
         :param optimizer_class: A PyTorch optimizer class, like Adam.
             (The *class*, not an *instance* of the class.)
 
-        :param loss_fn_class: A PyTorch loss class, like BCEWithLogitsLoss.
-            (The *class*, not an *instance* of the class.)
-
-        :param loss_fn_kwargs: Additional arguments that the loss function
-            will need for initialization.
+        :param loss_function: A PyTorch loss, like BCEWithLogitsLoss.
 
         :param best_model_by_fscore: Use the validation aggregated f-score
             instead of the loss to keep the best model during training.
@@ -76,8 +71,7 @@ class PyTorchTrainingStrategy(object):
         self.improvement_patience = improvement_patience
 
         # Loss function
-        self.loss_fn = loss_fn_class
-        self.loss_fn_kwargs = loss_fn_kwargs
+        self.loss_function = loss_function
 
         # Optimizer
         self.optimizer_class = optimizer_class
@@ -97,17 +91,13 @@ class PyTorchTrainingStrategy(object):
         # Persisting the model
         self.best_params_file = best_params_file
 
-    def loss_function(self):
-        return self.loss_fn(**self.loss_fn_kwargs)
-
     def summary(self) -> str:
         summary_string = "Training Strategy {0}:\n".format(self.name)
         summary_string += "  Training for {0} epochs with a batch-size of {1}.\n".format(self.max_epochs,
                                                                                          self.batch_size)
         summary_string += "  Optimizing with {0}, starting at a Learning rate of {1}\n".format(self.optimizer_class,
                                                                                                self.initial_learning_rate)
-        summary_string += "  Loss is computed by {0}, with additional parameters {1}\n".format(self.loss_fn,
-                                                                                               self.loss_fn_kwargs)
+        summary_string += "  Loss is computed by {0}\n".format(self.loss_function)
         summary_string += "  Early stopping after {0} epochs without improvement.\n".format(self.improvement_patience)
         summary_string += "  Checkpointing every {0} epochs into {1}.\n".format(self.n_epochs_per_checkpoint,
                                                                                 self.checkpoint_export_file)

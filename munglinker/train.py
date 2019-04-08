@@ -85,16 +85,14 @@ def main(args):
     print(mung_linker_network)
     summary(mung_linker_network, (3, 256, 512), device="cpu")
 
-    loss_function_class = BCELoss
-    loss_function_arguments = {}
+    loss_function = BCELoss()
 
     exp_name = build_experiment_name(args)
 
     checkpoint_export_file = args.export + '.ckpt'
 
     strategy = PyTorchTrainingStrategy(name=exp_name,
-                                       loss_fn_class=loss_function_class,
-                                       loss_fn_kwargs=loss_function_arguments,
+                                       loss_function=loss_function,
                                        n_epochs_per_checkpoint=args.n_epochs_per_checkpoint,
                                        best_model_by_fscore=False,
                                        max_epochs=args.n_epochs,

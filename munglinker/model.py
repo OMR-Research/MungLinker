@@ -137,7 +137,7 @@ class PyTorchNetwork(object):
             data['train'].batch_size = self.training_strategy.batch_size
 
             # Initialize loss
-            loss_function = self.training_strategy.loss_function()
+            loss_function = self.training_strategy.loss_function
 
             ##################################################################
             # Iteration
