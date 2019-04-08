@@ -48,19 +48,13 @@ class BaseConvnet(MungLinkerNetwork):
         cnn.add_module('pooling{0}'.format(4), nn.MaxPool2d(2, 2))  # 32 x 8 x 16
 
         self.cnn = cnn
-        fcn = nn.Sequential()
-        fcn.add_module('fcn0',
-                       nn.Linear(in_features=32 * 8 * 16,
-                                 out_features=1,
-                                 bias=False))
-
-        self.fcn = fcn
+        self.fully_connected = nn.Linear(in_features=32 * 8 * 16, out_features=1)
         self.output_activation = nn.Sigmoid()
 
-    def forward(self, input):
-        conv_output = self.cnn(input)
-        fcn_input = conv_output.view(-1, 32 * 8 * 16)
-        fcn_output = self.fcn(fcn_input)
+    def forward(self, input_patch):
+        conv_output = self.cnn(input_patch)
+        fcn_input = conv_output.view(-1, 32 * 8 * 16)  # Flatten
+        fcn_output = self.fully_connected(fcn_input)
         output = self.output_activation(fcn_output)
         return output
 
