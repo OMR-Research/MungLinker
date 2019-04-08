@@ -1,8 +1,6 @@
 """This is a script that applies a trained e2e OMR model to an input image
 or a directory of input images, and outputs the corresponding MIDI file(s).
 """
-from __future__ import print_function, unicode_literals
-
 import argparse
 import copy
 import logging
@@ -13,7 +11,6 @@ from typing import Dict
 
 import torch
 from PIL import Image
-from imageio import imread
 from muscima.cropobject import CropObject
 from muscima.graph import NotationGraph, NotationGraphError
 from muscima.io import parse_cropobject_list, export_cropobject_list
