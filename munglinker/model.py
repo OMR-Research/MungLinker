@@ -334,7 +334,7 @@ class PyTorchNetwork(object):
 
         return output
 
-    def __validate_epoch(self, data_pool, validation_batch_iterator, loss_function, current_epoch_index: int):
+    def __validate_epoch(self, data_pool: PairwiseMungoDataPool, validation_batch_iterator, loss_function, current_epoch_index: int):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
