@@ -123,10 +123,8 @@ class MunglinkerRunner(object):
             raise NotationGraphError('Found {0} in inlinks of {1}, but not {1} in outlinks of {0}!'
                                      ''.format(from_node, to_node))
 
-        id_to_crop_object_mapping[from_node].inlinks.append(to_node)
         id_to_crop_object_mapping[from_node].outlinks.append(to_node)
         id_to_crop_object_mapping[to_node].inlinks.append(from_node)
-        id_to_crop_object_mapping[to_node].outlinks.append(from_node)
 
     def model_output_to_midi(self, output_repr):
         return midi_matrix_to_midi(output_repr)

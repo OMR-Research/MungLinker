@@ -91,20 +91,11 @@ def cropobject_dict_from_list(cropobject_list):
     return {cropobject.objid: cropobject for cropobject in cropobject_list}
 
 
-def make_inlinks_and_outlinks_bidirectional(crop_objects: List[CropObject]):
-    for crop_object in crop_objects:
-        links = list(set(crop_object.outlinks + crop_object.inlinks))
-        crop_object.inlinks = links
-        crop_object.outlinks = links
-
-
 def evaluate_result(mung_reference_file, predicted_mung_file):
     print("Computing statistics for {0}".format(predicted_mung_file))
     # Read crop objects list
     reference_objects = parse_cropobject_list(mung_reference_file)
     predicted_objects = parse_cropobject_list(predicted_mung_file)
-
-    make_inlinks_and_outlinks_bidirectional(reference_objects)
 
     precision, recall, f1_score, true_positives, false_positives, false_negatives = \
         compute_statistics_on_crop_objects(reference_objects, predicted_objects)
