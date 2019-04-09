@@ -267,9 +267,7 @@ class PyTorchNetwork(object):
 
     def __train_epoch(self, data_pool: PairwiseMungoDataPool, training_batch_iterator: PoolIterator, loss_function,
                       optimizer,
-                      current_epoch_index: int,
-                      estimate_dices=False,
-                      debug_mode=False):
+                      current_epoch_index: int):
         """Run one epoch of training."""
 
         # Initialize data feeding from iterator
