@@ -81,7 +81,6 @@ def get_object_matching_pairs(predicted_objects: List[CropObject], reference_obj
     for p_obj in predicted_objects:
         for r_obj in reference_objects:
             if match(p_obj, r_obj):
-                logging.debug('Match', p_obj.objid, r_obj.objid)
                 pairs.append((p_obj.objid, r_obj.objid))
 
     return pairs
@@ -126,7 +125,12 @@ def compute_statistics_on_crop_objects(reference_objects, predicted_objects):
 
         # Check TP and FP (from predicted to reference)
         for out_p_edge in predicted_object.outlinks:
-            if prediction_to_reference_mapping[out_p_edge] in reference_object.outlinks:
+            if out_p_edge not in prediction_to_reference_mapping:
+                # We predicted an edge between objects, but the objects from the prediction
+                # could not be matched to objects from the ground truth, therefore this
+                # edge does not exists there as should be counted as false positive.
+                false_positives += 1
+            elif prediction_to_reference_mapping[out_p_edge] in reference_object.outlinks:
                 true_positives += 1
                 logging.debug(" ".join(map(str, [p_obj_id, r_obj_id, out_p_edge])))
             else:
@@ -134,7 +138,13 @@ def compute_statistics_on_crop_objects(reference_objects, predicted_objects):
 
         # Check FN (from reference to predicted)
         for out_r_edge in reference_object.outlinks:
-            if reference_to_prediction_mapping[out_r_edge] not in predicted_object.outlinks:
+            if out_r_edge not in reference_to_prediction_mapping:
+                # An outgoing edge from the reference object does not even have a corresponding object
+                # in the prediction, therefore it is a false negative.
+                false_negatives += 1
+            elif reference_to_prediction_mapping[out_r_edge] not in predicted_object.outlinks:
+                # An outgoing edge from the reference object does have a corresponding object
+                # in the prediction, but no edge, therefore it is a false negative.
                 false_negatives += 1
 
     precision = true_positives / (true_positives + false_positives)
