@@ -50,7 +50,7 @@ def build_argument_parser():
 """
 
 
-def match(p_obj, r_obj, threshold=0.7):
+def match(p_obj, r_obj, threshold=0.5):
     if p_obj.clsname == r_obj.clsname:
         p_box = [p_obj.left, p_obj.top, p_obj.right, p_obj.bottom]
         r_box = [r_obj.left, r_obj.top, r_obj.right, r_obj.bottom]
@@ -98,9 +98,8 @@ def evaluate_result(mung_reference_file, predicted_mung_file):
 
     precision, recall, f1_score, true_positives, false_positives, false_negatives = \
         compute_statistics_on_crop_objects(reference_objects, predicted_objects)
-    print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))
-    print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives, false_positives,
-                                                                                   false_negatives))
+    print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}, True positives: {3}, False positives: {4}, '
+          'False Negatives: {5}'.format(precision, recall, f1_score, true_positives, false_positives, false_negatives))
     return precision, recall, f1_score, true_positives, false_positives, false_negatives
 
 
