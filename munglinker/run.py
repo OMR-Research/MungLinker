@@ -92,8 +92,6 @@ class MunglinkerRunner(object):
         for mungo_from, mungo_to, output_class in zip(mungos_from, mungos_to, output_classes):
             has_edge = output_class == 1
             if has_edge:
-                logging.debug('Adding edge: {} --> {}'.format(mungo_from.objid,
-                                                              mungo_to.objid))
                 self.add_edge_in_graph(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping)
 
 
@@ -136,7 +134,7 @@ def build_argument_parser():
                         help='The name of the model that you wish to use.')
     parser.add_argument('-p', '--params', default="models/default_model.tsd",
                         help='The exported model from the training.')
-    parser.add_argument('-c', '--config', default="exp_configs/muscima_base.yaml",
+    parser.add_argument('-c', '--config', default="exp_configs/muscima_bboxes.yaml",
                         help='The config file that controls how inputs to the network will be extracted from MuNGOs.')
     parser.add_argument('-i', '--input_image', required=True,
                         help='A single-system input image for which MIDI should'
