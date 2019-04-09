@@ -187,10 +187,12 @@ if __name__ == '__main__':
         logging.info('Using mock network, so no parameters will be loaded.')
         model = MockNetwork(args.batch_size)
     else:
-        logging.info('Loading model checkpoint from state dict: {0}'.format(args.params))
+        print('Loading model from: {0}'.format(args.params))
         checkpoint = torch.load(args.params)
         mung_linker_network.load_state_dict(checkpoint['model_state_dict'])
         model = PyTorchNetwork(net=mung_linker_network)
+        print("Loaded model which has trained {0} epochs and achieved validation loss of {1:.3f}"
+              "".format(checkpoint["epoch"], checkpoint["best_validation_loss"]))
 
     runner = MunglinkerRunner(model=model,
                               config=config,
@@ -214,8 +216,13 @@ if __name__ == '__main__':
     output_mung_files = [os.path.join(args.output_mung_directory, os.path.basename(f)) for f in input_mung_files]
     os.makedirs(args.output_mung_directory, exist_ok=True)
 
-    if len(image_files) != len(input_mung_files):
-        raise Exception("Length of images and MuNGs is not the same")
+    if len(image_files) < len(input_mung_files):
+        raise Exception("Not every mung has a corresponding image.")
+
+    if len(image_files) > len(input_mung_files):
+        print("Didn't find a mung for every image. Filtering...")
+        image_file_names_to_include = [os.path.basename(p).replace(".xml", ".png") for p in input_mung_files]
+        image_files = [image for image in image_files if os.path.basename(image) in image_file_names_to_include]
 
     for i, (image_file, input_mung_file, output_mung_file) in enumerate(
             zip(image_files, input_mung_files, output_mung_files)):
@@ -233,7 +240,7 @@ if __name__ == '__main__':
         if args.play:
             mf = build_midi(cropobjects=output_mung.cropobjects)
             with open("output.midi", 'wb') as stream_out:
-                 mf.writeFile(stream_out)
+                mf.writeFile(stream_out)
 
     end_time = time.time()
     logging.info('run.py done in {0:.3f} s'.format(end_time - start_time))
