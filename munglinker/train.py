@@ -37,7 +37,7 @@ def build_argument_parser():
                              ' are training, validation, and test data. See the'
                              ' splits/ subdirectory for examples.')
 
-    parser.add_argument('-c', '--config_file', action='store', default="exp_configs/muscima_base.yaml",
+    parser.add_argument('-c', '--config_file', action='store', default="exp_configs/muscima_bboxes.yaml",
                         help='The config file that specifies things like'
                              ' preprocessing. See the exp_configs/ subdirectory'
                              ' for examples.')
