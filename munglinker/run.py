@@ -94,7 +94,6 @@ class MunglinkerRunner(object):
             if has_edge:
                 self.add_edge_in_graph(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping)
 
-
         return notation_graph
 
     @staticmethod

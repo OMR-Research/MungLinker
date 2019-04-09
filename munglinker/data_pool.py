@@ -109,7 +109,7 @@ class PairwiseMungoDataPool(Dataset):
             if mungos_are_connected:
                 targets[i_entity] = 1
 
-        return dict(mungos_from=mungos_from, mungo_to=mungos_to, patches=patches_batch, targets=targets)
+        return dict(mungos_from=mungos_from, mungos_to=mungos_to, patches=patches_batch, targets=targets)
 
     def __zoom_images(self):
         images_zoomed = []

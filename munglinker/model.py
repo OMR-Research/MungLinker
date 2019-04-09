@@ -4,6 +4,7 @@ import logging
 import os
 import pprint
 from math import ceil
+from statistics import mean
 from typing import Dict, List, Tuple
 
 import numpy
@@ -333,7 +334,8 @@ class PyTorchNetwork(object):
 
         return output
 
-    def __validate_epoch(self, data_pool: PairwiseMungoDataPool, validation_batch_iterator, loss_function, current_epoch_index: int):
+    def __validate_epoch(self, data_pool: PairwiseMungoDataPool, validation_batch_iterator, loss_function,
+                         current_epoch_index: int):
         """Run one epoch of validation. Returns a dict of validation results."""
         # Initialize data feeding from iterator
         iterator = validation_batch_iterator(data_pool)
@@ -349,7 +351,7 @@ class PyTorchNetwork(object):
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Validating epoch {0}".format(current_epoch_index))):
             mungos_from = data_batch["mungos_from"]  # type: List[CropObject]
-            mungos_to = data_batch["mungo_to"]  # type: List[CropObject]
+            mungos_to = data_batch["mungos_to"]  # type: List[CropObject]
             np_inputs = data_batch["patches"]  # type: numpy.ndarray
             np_targets = data_batch["targets"]  # type: numpy.ndarray
 
@@ -377,9 +379,11 @@ class PyTorchNetwork(object):
                 validation_mungos_from.extend(mungos_from)
                 validation_mungos_to.extend(mungos_to)
 
+        precisions, recalls, f1_scores = [], [], []
+        true_positives_list, false_positives_list, false_negatives_list = [], [], []
         for mung in data_pool.mungs:
             # One mung is one file
-            reference_crop_objects = mung.cropobjects # type: List[CropObject]
+            reference_crop_objects = mung.cropobjects  # type: List[CropObject]
             doc = reference_crop_objects[0].doc
             inference_crop_objects = [copy.deepcopy(m) for m in mung.cropobjects]
             for m in inference_crop_objects:
@@ -400,10 +404,23 @@ class PyTorchNetwork(object):
             from munglinker.evaluate_notation_assembly_from_mung import compute_statistics_on_crop_objects
             precision, recall, f1_score, true_positives, false_positives, false_negatives = \
                 compute_statistics_on_crop_objects(reference_crop_objects, inference_crop_objects)
-            print("Statistics for " + doc)
-            print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))
-            print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives, false_positives,
-                                                                               false_negatives))
+            precisions.append(precision)
+            recalls.append(recall)
+            f1_scores.append(f1_score)
+            true_positives_list.append(true_positives)
+            false_positives_list.append(false_positives)
+            false_negatives_list.append(false_negatives)
+            # print("Statistics for " + doc)
+            # print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(precision, recall, f1_score))
+            # print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(true_positives,
+            #                                                                                false_positives,
+            #                                                                                false_negatives))
+
+        print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(mean(precisions), mean(recalls),
+                                                                              mean(f1_scores)))
+        print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(mean(true_positives_list),
+                                                                                       mean(false_positives_list),
+                                                                                       mean(false_negatives_list)))
 
         # Compute evaluation metrics aggregated over validation set.
         aggregated_metrics = self.__evaluate_classification(validation_predicted_classes,
@@ -451,7 +468,7 @@ class PyTorchNetwork(object):
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Predicting connections")):
             mungos_from = data_batch["mungos_from"]  # type: List[CropObject]
-            mungos_to = data_batch["mungo_to"]  # type: List[CropObject]
+            mungos_to = data_batch["mungos_to"]  # type: List[CropObject]
             np_inputs = data_batch["patches"]  # type: numpy.ndarray
 
             all_mungos_from.extend(mungos_from)
