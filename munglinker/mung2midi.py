@@ -192,6 +192,7 @@ def main(args):
             output_path = os.path.join(args.output_dir, basename + '.mid')
 
         mf = build_midi(cropobjects=cropobjects)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'wb') as stream_out:
             mf.writeFile(stream_out)
 

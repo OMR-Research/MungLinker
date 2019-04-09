@@ -138,7 +138,6 @@ def targets2classes(targets, threshold=0.5):
 
 def midi_matrix_to_midi(midi_matrix, FPS=20, tempo=120):
     """Returns a midiutils.MidiFile.MIDIFile object."""
-    # Use MIDIBuilder.build_midi()
     from muscima.inference import MIDIBuilder
     builder = MIDIBuilder()
     pitches, durations, onsets = builder.midi_matrix_to_pdo(midi_matrix,

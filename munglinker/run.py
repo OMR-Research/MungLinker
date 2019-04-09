@@ -19,6 +19,7 @@ from munglinker.batch_iterators import PoolIterator
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
 from munglinker.evaluate_notation_assembly_from_mung import evaluate_result
 from munglinker.model import PyTorchNetwork
+from munglinker.mung2midi import build_midi
 from munglinker.utils import midi_matrix_to_midi
 from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
 import numpy as np
@@ -151,9 +152,6 @@ def build_argument_parser():
                              ' image files (like for training).')
     parser.add_argument('-o', '--output_mung_directory', required=True,
                         help='The directory that will contain the MuNGs.')
-    parser.add_argument('--visualize', action='store_true',
-                        help='If set, will plot the image and output MIDI'
-                             '[NOT IMPLEMENTED].')
     parser.add_argument('--batch_size', type=int, action='store', default=10,
                         help='The runtime iterator batch size.')
     parser.add_argument('--mock', action='store_true',
@@ -161,11 +159,9 @@ def build_argument_parser():
                              ' a mock prediction using MockNetwork.predict()')
     parser.add_argument('--play', action='store_true',
                         help='If set, will run MIDI inference over the output'
-                             ' MuNG and play the result. [NOT IMPLEMENTED]')
+                             ' MuNG and play the result.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Turn on INFO messages.')
-    parser.add_argument('--debug', action='store_true',
-                        help='Turn on DEBUG messages.')
 
     return parser
 
@@ -176,8 +172,6 @@ if __name__ == '__main__':
 
     if args.verbose:
         logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-    if args.debug:
-        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
 
     logging.info('Starting main...')
     start_time = time.time()
@@ -236,16 +230,10 @@ if __name__ == '__main__':
         precision, recall, f1_score, true_positives, false_positives, false_negatives = \
             evaluate_result(input_mung_file, output_mung_file)
 
-    if args.visualize:
-        logging.info('Visualization not implemented!!!')
-        pass
-
-    if args.play:
-        logging.info('Playback not implemented!!!')
-        # mf = build_midi(cropobjects=output_mung.cropobjects)
-        # with open(output_path, 'wb') as stream_out:
-        #     mf.writeFile(stream_out)
-        pass
+        if args.play:
+            mf = build_midi(cropobjects=output_mung.cropobjects)
+            with open("output.midi", 'wb') as stream_out:
+                 mf.writeFile(stream_out)
 
     end_time = time.time()
     logging.info('run.py done in {0:.3f} s'.format(end_time - start_time))
