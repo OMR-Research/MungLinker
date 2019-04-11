@@ -22,6 +22,7 @@ from munglinker.model import PyTorchNetwork
 from munglinker.mung2midi import build_midi
 from munglinker.utils import midi_matrix_to_midi
 from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
+import pandas as pd
 import numpy as np
 
 
@@ -224,6 +225,7 @@ if __name__ == '__main__':
         image_file_names_to_include = [os.path.basename(p).replace(".xml", ".png") for p in input_mung_files]
         image_files = [image for image in image_files if os.path.basename(image) in image_file_names_to_include]
 
+    results = []
     for i, (image_file, input_mung_file, output_mung_file) in enumerate(
             zip(image_files, input_mung_files, output_mung_files)):
         input_mungos = parse_cropobject_list(input_mung_file)
@@ -237,10 +239,18 @@ if __name__ == '__main__':
         precision, recall, f1_score, true_positives, false_positives, false_negatives = \
             evaluate_result(input_mung_file, output_mung_file)
 
+        results.append((input_mung_file, precision, recall, f1_score, true_positives, false_positives, false_negatives))
+
         if args.play:
             mf = build_midi(cropobjects=output_mung.cropobjects)
             with open("output.midi", 'wb') as stream_out:
                 mf.writeFile(stream_out)
+
+    results = pd.DataFrame(results,
+                           columns=["Filename", "Precision", "Recall", "F1-Score", "True Positives", "False Positives",
+                                    "False Negatives"])
+
+    results.to_csv("results.csv", float_format="%.5f", index=False)
 
     end_time = time.time()
     logging.info('run.py done in {0:.3f} s'.format(end_time - start_time))
