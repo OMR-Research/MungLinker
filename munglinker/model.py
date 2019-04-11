@@ -459,7 +459,8 @@ class PyTorchNetwork(object):
         """
         iterator = runtime_batch_iterator(data_pool)
         number_of_batches = ceil(len(data_pool) / runtime_batch_iterator.batch_size)
-        print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches))
+        print('{} runtime entities found. Processing them in {} batches.'.format(len(data_pool), number_of_batches),
+              flush=True)
 
         all_mungos_from = []
         all_mungos_to = []
