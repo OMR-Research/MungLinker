@@ -187,25 +187,6 @@ if __name__ == '__main__':
     logging.info('Loading config: {}'.format(args.config))
     config = load_config(args.config)
 
-    logging.info('Loading model: {}'.format(args.model))
-    mung_linker_network = select_model(args.model, args.batch_size)
-    runtime_batch_iterator = mung_linker_network.runtime_batch_iterator()
-
-    if args.mock:
-        logging.info('Using mock network, so no parameters will be loaded.')
-        model = MockNetwork(args.batch_size)
-    else:
-        print('Loading model from: {0}'.format(args.params))
-        checkpoint = torch.load(args.params)
-        mung_linker_network.load_state_dict(checkpoint['model_state_dict'])
-        model = PyTorchNetwork(net=mung_linker_network)
-        print("Loaded model which has trained {0} epochs and achieved validation loss of {1:.3f}"
-              "".format(checkpoint["epoch"], checkpoint["best_validation_loss"]))
-
-    runner = MunglinkerRunner(model=model,
-                              config=config,
-                              runtime_batch_iterator=runtime_batch_iterator)
-
     image_files = []
     input_mung_files = []
     ground_truth_mung_files = []
@@ -225,7 +206,7 @@ if __name__ == '__main__':
     if os.path.isfile(args.ground_truth_mung):
         logging.info('Loading Ground Truth MuNG: {}'.format(args.ground_truth_mung))
         ground_truth_mung_files.append(args.ground_truth_mung)
-    elif os.path.isdir(args.input_mung):
+    elif os.path.isdir(args.ground_truth_mung):
         ground_truth_mung_files.extend(glob(args.ground_truth_mung + "/*.xml"))
 
     output_mung_files = [os.path.join(args.output_mung_directory, os.path.basename(f)) for f in input_mung_files]
@@ -248,6 +229,26 @@ if __name__ == '__main__':
                                    os.path.basename(mung_file) in ground_truth_mungs_to_include]
 
     results = []
+
+    logging.info('Loading model: {}'.format(args.model))
+    mung_linker_network = select_model(args.model, args.batch_size)
+    runtime_batch_iterator = mung_linker_network.runtime_batch_iterator()
+
+    if args.mock:
+        logging.info('Using mock network, so no parameters will be loaded.')
+        model = MockNetwork(args.batch_size)
+    else:
+        print('Loading model from: {0}'.format(args.params))
+        checkpoint = torch.load(args.params)
+        mung_linker_network.load_state_dict(checkpoint['model_state_dict'])
+        model = PyTorchNetwork(net=mung_linker_network)
+        print("Loaded model which has trained {0} epochs and achieved validation loss of {1:.3f}"
+              "".format(checkpoint["epoch"], checkpoint["best_validation_loss"]))
+
+    runner = MunglinkerRunner(model=model,
+                              config=config,
+                              runtime_batch_iterator=runtime_batch_iterator)
+
     for i, (image_file, input_mung_file, output_mung_file, ground_truth_mung_file) in enumerate(
             zip(image_files, input_mung_files, output_mung_files, ground_truth_mung_files)):
         input_mungos = parse_cropobject_list(input_mung_file)
