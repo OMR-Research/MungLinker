@@ -103,7 +103,16 @@ def evaluate_result(mung_reference_file, predicted_mung_file):
     return precision, recall, f1_score, true_positives, false_positives, false_negatives
 
 
+def sanitize_crop_object_class_names(crop_objects: List[CropObject]):
+    for crop_object in crop_objects:
+        # Some classes have special characters in their class name that we have to remove
+        crop_object.clsname = crop_object.clsname.replace('"', '').replace('/', '').replace('.', '')
+
+
 def compute_statistics_on_crop_objects(reference_objects, predicted_objects):
+    sanitize_crop_object_class_names(reference_objects)
+    sanitize_crop_object_class_names(predicted_objects)
+
     # Build pairs between predicted and reference
     object_matching_pair = get_object_matching_pairs(predicted_objects, reference_objects)
 
