@@ -25,7 +25,7 @@ if __name__ == '__main__':
     dataset_downloader = MuscimaPlusPlusDatasetDownloader()
     dataset_downloader.download_and_extract_dataset(temporary_directory)
 
-    copy_tree(os.path.join(temporary_directory, "v1.0", "data", "cropobjects_withstaff"), mung_root_directory)
+    copy_tree(os.path.join(temporary_directory, "v1.0", "data", "cropobjects_manual"), mung_root_directory)
     copy_tree(os.path.join(temporary_directory, "v1.0", "data", "images"), image_root_directory)
 
     shutil.rmtree(temporary_directory)
