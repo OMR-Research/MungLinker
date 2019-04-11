@@ -151,6 +151,13 @@ def build_argument_parser():
                              ' directory, expecting --input_image to also'
                              ' be a directory with correspondingly named'
                              ' image files (like for training).')
+    parser.add_argument('-t', '--ground_truth_mung', required=True,
+                        help='A MuNG XML file that contains the ground truth. The edges inlinks/outlinks in'
+                             ' the file are ignored. If this is a'
+                             ' directory, it will run over all MuNGs in that'
+                             ' directory, expecting --input_image to also'
+                             ' be a directory with correspondingly named'
+                             ' image files (like for training).')
     parser.add_argument('-o', '--output_mung_directory', required=True,
                         help='The directory that will contain the MuNGs.')
     parser.add_argument('--batch_size', type=int, action='store', default=10,
@@ -201,6 +208,7 @@ if __name__ == '__main__':
 
     image_files = []
     input_mung_files = []
+    ground_truth_mung_files = []
 
     if os.path.isfile(args.input_image):
         logging.info('Loading image: {}'.format(args.input_image))
@@ -214,20 +222,34 @@ if __name__ == '__main__':
     elif os.path.isdir(args.input_mung):
         input_mung_files.extend(glob(args.input_mung + "/*.xml"))
 
+    if os.path.isfile(args.ground_truth_mung):
+        logging.info('Loading Ground Truth MuNG: {}'.format(args.ground_truth_mung))
+        ground_truth_mung_files.append(args.ground_truth_mung)
+    elif os.path.isdir(args.input_mung):
+        ground_truth_mung_files.extend(glob(args.ground_truth_mung + "/*.xml"))
+
     output_mung_files = [os.path.join(args.output_mung_directory, os.path.basename(f)) for f in input_mung_files]
     os.makedirs(args.output_mung_directory, exist_ok=True)
 
     if len(image_files) < len(input_mung_files):
         raise Exception("Not every mung has a corresponding image.")
-
     if len(image_files) > len(input_mung_files):
         print("Didn't find a mung for every image. Filtering...")
         image_file_names_to_include = [os.path.basename(p).replace(".xml", ".png") for p in input_mung_files]
         image_files = [image for image in image_files if os.path.basename(image) in image_file_names_to_include]
 
+    if len(ground_truth_mung_files) < len(input_mung_files):
+        raise Exception("Not every mung has a corresponding ground-truth.")
+
+    if len(ground_truth_mung_files) > len(input_mung_files):
+        print("Didn't find a mung for every ground-truth. Filtering...")
+        ground_truth_mungs_to_include = [os.path.basename(p) for p in input_mung_files]
+        ground_truth_mung_files = [mung_file for mung_file in ground_truth_mung_files if
+                                   os.path.basename(mung_file) in ground_truth_mungs_to_include]
+
     results = []
-    for i, (image_file, input_mung_file, output_mung_file) in enumerate(
-            zip(image_files, input_mung_files, output_mung_files)):
+    for i, (image_file, input_mung_file, output_mung_file, ground_truth_mung_file) in enumerate(
+            zip(image_files, input_mung_files, output_mung_files, ground_truth_mung_files)):
         input_mungos = parse_cropobject_list(input_mung_file)
         input_mung = NotationGraph(input_mungos)
 
@@ -237,7 +259,7 @@ if __name__ == '__main__':
             file.write(export_cropobject_list(output_mung.cropobjects))
 
         precision, recall, f1_score, true_positives, false_positives, false_negatives = \
-            evaluate_result(input_mung_file, output_mung_file)
+            evaluate_result(ground_truth_mung_file, output_mung_file)
 
         results.append((input_mung_file, precision, recall, f1_score, true_positives, false_positives, false_negatives))
 
