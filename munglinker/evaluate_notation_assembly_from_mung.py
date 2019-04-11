@@ -8,6 +8,7 @@ the notation assembly stage of the OMR pipeline.
 """
 from __future__ import print_function, unicode_literals, division
 
+import copy
 from glob import glob
 from typing import List
 
@@ -110,6 +111,8 @@ def sanitize_crop_object_class_names(crop_objects: List[CropObject]):
 
 
 def compute_statistics_on_crop_objects(reference_objects, predicted_objects):
+    reference_objects = [copy.deepcopy(c) for c in reference_objects]
+    predicted_objects = [copy.deepcopy(c) for c in predicted_objects]
     sanitize_crop_object_class_names(reference_objects)
     sanitize_crop_object_class_names(predicted_objects)
 
