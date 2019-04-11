@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple
 import numpy
 import numpy.random
 import torch
+from PIL import Image, ImageOps
 from muscima.cropobject import CropObject
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
@@ -267,8 +268,7 @@ class PyTorchNetwork(object):
             return best_validation_loss
 
     def __train_epoch(self, data_pool: PairwiseMungoDataPool, training_batch_iterator: PoolIterator, loss_function,
-                      optimizer,
-                      current_epoch_index: int):
+                      optimizer, current_epoch_index: int):
         """Run one epoch of training."""
 
         # Initialize data feeding from iterator
@@ -439,7 +439,7 @@ class PyTorchNetwork(object):
         class_pair_results['all'] = validation_results
         return class_pair_results
 
-    def predict(self, data_pool: PairwiseMungoDataPool, runtime_batch_iterator) -> Tuple[
+    def predict(self, data_pool: PairwiseMungoDataPool, runtime_batch_iterator, export_patches=False) -> Tuple[
         List[CropObject], List[CropObject], List[int]]:
         """Runs the model prediction. Expects a data pool and a runtime
         batch iterator.
@@ -453,9 +453,9 @@ class PyTorchNetwork(object):
 
         :param runtime_batch_iterator: Batch iterator from a model's runtime.
 
-        :returns: A list of (mungo_pairs, predictions). After applying this
-            method, you will have to take care of actually adding the predicted
-            edges into the graphs -- split the MuNG pairs by documents, etc.
+        :returns: A list of from-crop-objects, a list of to-crop-objects (they form a pair),
+            a list of predictions (1 = there is an edge, 0 = there is no edge) and a list of input arrays, that
+            were used for classification. All list have the same size.
         """
         iterator = runtime_batch_iterator(data_pool)
         number_of_batches = ceil(len(data_pool) / runtime_batch_iterator.batch_size)
@@ -465,6 +465,8 @@ class PyTorchNetwork(object):
         all_mungos_from = []
         all_mungos_to = []
         all_np_predicted_classes = []
+
+        os.makedirs("pil_exports", exist_ok=True)
 
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Predicting connections")):
@@ -481,7 +483,27 @@ class PyTorchNetwork(object):
             np_predicted_classes = targets2classes(np_predictions)
             all_np_predicted_classes.extend(np_predicted_classes)
 
+            if export_patches:
+                for index in range(self.training_strategy.batch_size):
+                    from munglinker.run import MunglinkerRunner
+                    pil_image = self.convert_patch_to_pil_image(np_inputs[index])
+                    pil_image.save(
+                        "pil_exports/{0}-{1}-to-{2}.png".format(mungos_from[index].doc, mungos_from[index].objid,
+                                                                mungos_to[index].objid))
+
+        assert len(all_mungos_from) == len(all_mungos_to)
+        assert len(all_mungos_from) == len(all_np_predicted_classes)
         return all_mungos_from, all_mungos_to, all_np_predicted_classes
+
+    @staticmethod
+    def convert_patch_to_pil_image(patch):
+        pil_image = Image.fromarray(numpy.uint8(patch[0] * 255)).convert("RGB")
+        from_mask = Image.fromarray(numpy.uint8(patch[1] * 255))
+        to_mask = Image.fromarray(numpy.uint8(patch[2] * 255))
+        pil_image = ImageOps.invert(pil_image)
+        pil_image.paste((108, 183, 73), (0, 0), to_mask)
+        pil_image.paste((255, 147, 79), (0, 0), from_mask)
+        return pil_image
 
     @staticmethod
     def __evaluate_classification(predicted_classes, true_classes):
