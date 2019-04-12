@@ -163,12 +163,14 @@ class PyTorchNetwork(object):
                         else:
                             os.makedirs(os.path.dirname(self.training_strategy.checkpoint_export_file),
                                         exist_ok=True)
+                        checkpoint_name = self.training_strategy.checkpoint_export_file.replace(
+                            ".tsd.ckpt", "-{0}.tsd.ckpt".format(current_epoch_index))
                         torch.save({
                             "epoch": current_epoch_index,
                             "model_state_dict": self.net.state_dict(),
                             "optimizer_state_dict": self.optimizer.state_dict(),
                             "best_validation_loss": best_validation_loss},
-                            self.training_strategy.checkpoint_export_file)
+                            checkpoint_name)
                     else:
                         logging.warning('Cannot checkpoint: no checkpoint file'
                                         ' specified in training strategy!')
