@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import time
 
 import torch
@@ -20,7 +21,7 @@ def build_argument_parser():
 
     parser.add_argument('-m', '--model', default="base_convnet",
                         help='The name of the model that you wish to use. '
-                             'Must be one of ["base_convnet", "base_convnet_double_filters"].')
+                             'Must be one of ["base_convnet", "base_convnet_double_filters", "base_convnet_global_maxpooling"].')
     parser.add_argument('--continue_training', action='store_true',
                         help='If set, checks whether a model under the name set'
                              ' in -e already exists. If it does, initialize training'
@@ -110,12 +111,17 @@ def main(args):
 
     if args.continue_training:
         try:
-            checkpoint = torch.load(checkpoint_export_file)
+            for i in range(args.n_epochs, 1, -1):
+                checkpoint_export_file_to_restore = checkpoint_export_file.replace(".tsd.ckpt", "-{0}.tsd.ckpt".format(i))
+                if os.path.isfile(checkpoint_export_file_to_restore):
+                    break
+
+            checkpoint = torch.load(checkpoint_export_file_to_restore)
             model.net.load_state_dict(checkpoint['model_state_dict'])
             model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             initial_epoch = checkpoint['epoch'] + 1
             previously_best_validation_loss = checkpoint['best_validation_loss']
-            print('Loaded model from checkpoint: {0}. Resuming at epoch {1}'.format(checkpoint_export_file,
+            print('Loaded model from checkpoint: {0}. Resuming at epoch {1}'.format(checkpoint_export_file_to_restore,
                                                                                     initial_epoch))
         except OSError as e:
             print('Error during loading of previously saved checkpoint {0}: {1}'.format(checkpoint_export_file, e))
