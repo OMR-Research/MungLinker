@@ -1,13 +1,4 @@
-import logging
-
-import numpy as np
-
-import torch
 import torch.nn as nn
-from muscima.cropobject import CropObject
-from torch.autograd import Variable
-from typing import List
-
 from torchsummary import summary
 
 from munglinker.models.munglinker_network import MungLinkerNetwork
