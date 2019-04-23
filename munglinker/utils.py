@@ -9,6 +9,8 @@ from muscima.io import parse_cropobject_class_list
 
 from munglinker.models.base_convnet import BaseConvnet
 from munglinker.models.base_convnet_double_filters import BaseConvnetDoubleFilters
+
+from munglinker.models.base_convnet_global_pooling import BaseConvnetGlobalPooling
 from munglinker.models.mock_convnet import MockNetwork
 from munglinker.models.munglinker_network import MungLinkerNetwork
 
@@ -191,6 +193,8 @@ def select_model(model_name: str, batch_size: int) -> MungLinkerNetwork:
         return BaseConvnet(batch_size=batch_size)
     elif model_name == "base_convnet_double_filters":
         return BaseConvnetDoubleFilters(batch_size=batch_size)
+    elif model_name == "base_convnet_global_pooling":
+        return BaseConvnetGlobalPooling(batch_size=batch_size)
     elif model_name == "mock":
         return MockNetwork(batch_size=batch_size)
     else:
