@@ -4,7 +4,7 @@ Experiments on linking the nodes of a music notation graph (MuNG). The basic ide
 
 ## Requirements
 
-- Python 3.6
+- Python 3.6 / 3.7
 - [PyTorch](https://pytorch.org/)
 
 Install the sources with ``pip install -e .`` to follow updates without having to re-install.
