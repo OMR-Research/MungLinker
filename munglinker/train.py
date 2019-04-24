@@ -111,7 +111,7 @@ def main(args):
 
     if args.continue_training:
         try:
-            for i in range(args.n_epochs, 1, -1):
+            for i in range(args.n_epochs, 0, -1):
                 checkpoint_export_file_to_restore = checkpoint_export_file.replace(".tsd.ckpt", "-{0}.tsd.ckpt".format(i))
                 if os.path.isfile(checkpoint_export_file_to_restore):
                     break
