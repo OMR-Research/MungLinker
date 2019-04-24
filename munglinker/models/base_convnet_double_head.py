@@ -4,22 +4,18 @@ from torchsummary import summary
 from munglinker.models.munglinker_network import MungLinkerNetwork
 
 
-class BaseConvnetGlobalPooling(MungLinkerNetwork):
-    """ Basic ConvNet with binary classifier sigmoid (no bias) at the end.
-        The network does not flatten the convolutional features, but uses
-        global max pooling to arrive at a single neuron for the output.
-    """
+class BaseConvnetDoubleHead(MungLinkerNetwork):
+    """Basic ConvNet with binary classifier sigmoid (no bias) at the end."""
 
     def __init__(self, n_input_channels=3, batch_size=4):
-        super(BaseConvnetGlobalPooling, self).__init__(batch_size)
+        super(BaseConvnetDoubleHead, self).__init__(batch_size)
 
         self.n_input_channels = n_input_channels
 
         kernel_sizes = [3, 3, 3, 3, 3]
         paddings = [1, 1, 1, 1, 1]
         strides = [1, 1, 1, 1, 1]
-        n_filters = [16, 32, 64, 64, 64]
-        global_pooling_kernel = [8, 16]
+        n_filters = [8, 16, 32, 32, 32]
 
         cnn = nn.Sequential()
 
@@ -41,27 +37,28 @@ class BaseConvnetGlobalPooling(MungLinkerNetwork):
         # Input size expected (n_batch x n_channels x MIDI_N_PITCHES x MIDI_MAX_LEN),
         # which is by default (n_batch x 3 x 256 x 512)
         convRelu(0)
-        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 32 x 128 x 256
+        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 8 x 128 x 256
         convRelu(1)
-        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 64 x 64 x 128
+        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 16 x 64 x 128
         convRelu(2)
-        cnn.add_module('pooling{0}'.format(2), nn.MaxPool2d(2, 2))  # 128 x 32 x 64
+        cnn.add_module('pooling{0}'.format(2), nn.MaxPool2d(2, 2))  # 32 x 32 x 64
         convRelu(3)
-        cnn.add_module('pooling{0}'.format(3), nn.MaxPool2d(2, 2))  # 128 x 16 x 32
+        cnn.add_module('pooling{0}'.format(3), nn.MaxPool2d(2, 2))  # 32 x 16 x 32
         convRelu(4)
-        cnn.add_module('pooling{0}'.format(4), nn.MaxPool2d(2, 2))  # 128 x 8 x 16
-        final_conv = nn.Conv2d(n_filters[4], 1, kernel_size=1, padding=0)
-        cnn.add_module('final_conv', final_conv)
+        cnn.add_module('pooling{0}'.format(4), nn.MaxPool2d(2, 2))  # 32 x 8 x 16
 
         self.cnn = cnn
-        self.global_pooling = nn.MaxPool2d(global_pooling_kernel)
+        self.fully_connected1 = nn.Linear(in_features=32 * 8 * 16, out_features=20)
+        self.dropout = nn.Dropout()
+        self.fully_connected2 = nn.Linear(in_features=20, out_features=1)
         self.output_activation = nn.Sigmoid()
 
     def forward(self, input_patch):
         conv_output = self.cnn(input_patch)
-        # fcn_output = F.max_pool2d(conv_output, conv_output.size()[2:])
-        fcn_output = self.global_pooling(conv_output)
-        fcn_output = fcn_output.view(-1, 1)  # Flatten
+        fcn_input = conv_output.view(-1, 32 * 8 * 16)  # Flatten
+        fcn_output = self.fully_connected1(fcn_input)
+        fcn_output = self.dropout(fcn_output)
+        fcn_output = self.fully_connected2(fcn_output)
         output = self.output_activation(fcn_output)
         return output
 
@@ -70,6 +67,6 @@ if __name__ == '__main__':
     patch_shape = 3, 256, 512
     patch_channels = 3
 
-    model = BaseConvnetGlobalPooling(n_input_channels=patch_channels)
+    model = BaseConvnetDoubleHead(n_input_channels=patch_channels)
     print(model)
     summary(model, patch_shape, device="cpu")
