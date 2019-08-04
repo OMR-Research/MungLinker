@@ -420,7 +420,7 @@ class PyTorchNetwork(object):
 
         print('Precision: {0:.3f}, Recall: {1:.3f}, F1-Score: {2:.3f}'.format(mean(precisions), mean(recalls),
                                                                               mean(f1_scores)))
-        print("True positives: {0}, False positives: {1}, False Negatives: {2}".format(mean(true_positives_list),
+        print("Avg. True positives: {0:.2f}, False positives: {1:.2f}, False Negatives: {2:.2f}".format(mean(true_positives_list),
                                                                                        mean(false_positives_list),
                                                                                        mean(false_negatives_list)))
 
