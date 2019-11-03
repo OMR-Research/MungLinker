@@ -8,7 +8,7 @@ a [Music Notationg Graph](https://github.com/OMR-Research/mung) like this:
 ![](images/w-14_p012_annotated.png)
 
 One way how this can be done is by training a convolutional neural network to take the output of an 
-object detector and for each pair of objects decides whether an edge between them should be constructed or not.
+object detector and for each pair of objects decide whether an edge between them should be constructed or not.
 
 ![](images/Visualization%20Of%20Approach.png)
 
