@@ -11,7 +11,7 @@ import numpy
 import numpy.random
 import torch
 from PIL import Image, ImageOps
-from muscima.cropobject import CropObject
+from mung.node import Node
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 from torch.autograd import Variable
@@ -352,8 +352,8 @@ class PyTorchNetwork(object):
 
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Validating epoch {0}".format(current_epoch_index))):
-            mungos_from = data_batch["mungos_from"]  # type: List[CropObject]
-            mungos_to = data_batch["mungos_to"]  # type: List[CropObject]
+            mungos_from = data_batch["mungos_from"]  # type: List[Node]
+            mungos_to = data_batch["mungos_to"]  # type: List[Node]
             np_inputs = data_batch["patches"]  # type: numpy.ndarray
             np_targets = data_batch["targets"]  # type: numpy.ndarray
 
@@ -385,15 +385,15 @@ class PyTorchNetwork(object):
         true_positives_list, false_positives_list, false_negatives_list = [], [], []
         for mung in data_pool.mungs:
             # One mung is one file
-            reference_crop_objects = mung.cropobjects  # type: List[CropObject]
-            doc = reference_crop_objects[0].doc
-            inference_crop_objects = [copy.deepcopy(m) for m in mung.cropobjects]
+            reference_crop_objects = mung.vertices  # type: List[Node]
+            doc = reference_crop_objects[0].document
+            inference_crop_objects = [copy.deepcopy(m) for m in mung.vertices]
             for m in inference_crop_objects:
                 m.outlinks = []
                 m.inlinks = []
 
-            id_to_crop_object_mapping = {c.objid: c for c in inference_crop_objects}
-            indices = [i for i, m in enumerate(validation_mungos_from) if m.doc == doc]
+            id_to_crop_object_mapping = {c.id: c for c in inference_crop_objects}
+            indices = [i for i, m in enumerate(validation_mungos_from) if m.document == doc]
             mungos_from_this_file = [validation_mungos_from[i] for i in indices]
             mungos_to_this_file = [validation_mungos_to[i] for i in indices]
             output_classes = [validation_predicted_classes[i] for i in indices]
@@ -401,7 +401,7 @@ class PyTorchNetwork(object):
             for mungo_from, mungo_to, output_class in zip(mungos_from_this_file, mungos_to_this_file, output_classes):
                 has_edge = output_class == 1
                 if has_edge:
-                    MunglinkerRunner.add_edge_in_graph(mungo_from.objid, mungo_to.objid, id_to_crop_object_mapping)
+                    MunglinkerRunner.add_edge_in_graph(mungo_from.id, mungo_to.id, id_to_crop_object_mapping)
 
             from munglinker.evaluate_notation_assembly_from_mung import compute_statistics_on_crop_objects
             precision, recall, f1_score, true_positives, false_positives, false_negatives = \
@@ -442,7 +442,7 @@ class PyTorchNetwork(object):
         return class_pair_results
 
     def predict(self, data_pool: PairwiseMungoDataPool, runtime_batch_iterator, export_patches=False) -> Tuple[
-        List[CropObject], List[CropObject], List[int]]:
+        List[Node], List[Node], List[int]]:
         """Runs the model prediction. Expects a data pool and a runtime
         batch iterator.
 
@@ -472,8 +472,8 @@ class PyTorchNetwork(object):
 
         for current_batch_index, data_batch in enumerate(tqdm(iterator, total=number_of_batches,
                                                               desc="Predicting connections")):
-            mungos_from = data_batch["mungos_from"]  # type: List[CropObject]
-            mungos_to = data_batch["mungos_to"]  # type: List[CropObject]
+            mungos_from = data_batch["mungos_from"]  # type: List[Node]
+            mungos_to = data_batch["mungos_to"]  # type: List[Node]
             np_inputs = data_batch["patches"]  # type: numpy.ndarray
 
             all_mungos_from.extend(mungos_from)
@@ -490,8 +490,8 @@ class PyTorchNetwork(object):
                     from munglinker.run import MunglinkerRunner
                     pil_image = self.convert_patch_to_pil_image(np_inputs[index])
                     pil_image.save(
-                        "pil_exports/{0}-{1}-to-{2}.png".format(mungos_from[index].doc, mungos_from[index].objid,
-                                                                mungos_to[index].objid))
+                        "pil_exports/{0}-{1}-to-{2}.png".format(mungos_from[index].document, mungos_from[index].id,
+                                                                mungos_to[index].id))
 
         assert len(all_mungos_from) == len(all_mungos_to)
         assert len(all_mungos_from) == len(all_np_predicted_classes)

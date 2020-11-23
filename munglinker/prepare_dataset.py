@@ -3,7 +3,7 @@ import os
 import shutil
 from distutils.dir_util import copy_tree
 
-from omrdatasettools.downloaders.MuscimaPlusPlusDatasetDownloader import MuscimaPlusPlusDatasetDownloader
+from omrdatasettools.Downloader import Downloader, OmrDataset
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -22,13 +22,10 @@ if __name__ == '__main__':
     os.makedirs(image_root_directory, exist_ok=True)
 
     temporary_directory = "temp"
-    dataset_downloader = MuscimaPlusPlusDatasetDownloader()
-    dataset_downloader.download_and_extract_dataset(temporary_directory)
+    dataset_downloader = Downloader()
+    dataset_downloader.download_and_extract_dataset(OmrDataset.MuscimaPlusPlus_V2, temporary_directory)
 
-    copy_tree(os.path.join(temporary_directory, "v1.0", "data", "cropobjects_manual"), mung_root_directory)
-    copy_tree(os.path.join(temporary_directory, "v1.0", "data", "images"), image_root_directory)
+    copy_tree(os.path.join(temporary_directory, "v2.0", "data", "annotations"), mung_root_directory)
+    copy_tree(os.path.join(temporary_directory, "v2.0", "data", "images"), image_root_directory)
 
     shutil.rmtree(temporary_directory)
-    os.remove(dataset_downloader.get_dataset_filename())
-    os.remove(dataset_downloader.get_imageset_filename())
-

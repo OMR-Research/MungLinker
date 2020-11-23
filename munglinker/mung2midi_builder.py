@@ -7,10 +7,11 @@ import logging
 import os
 import time
 import traceback
+from typing import List
 
-from muscima.graph import NotationGraph
-from muscima.inference import PitchInferenceEngine, OnsetsInferenceEngine, MIDIBuilder, _CONST
-from muscima.io import parse_cropobject_list
+from mung import constants
+from mung.graph import NotationGraph
+from mung.io import read_nodes_from_file
 
 __version__ = "0.0.1"
 __author__ = "Jan Hajic jr."
@@ -18,8 +19,11 @@ __author__ = "Jan Hajic jr."
 
 ##############################################################################
 # MIDI export
+from mung.node import Node
+from mung2midi.inference import PitchInferenceEngine, OnsetsInferenceEngine, MIDIBuilder
 
-def build_midi(cropobjects, selected_cropobjects=None,
+
+def build_midi(nodes: List[Node], selected_nodes=None,
                retain_pitches=True,
                retain_durations=True,
                retain_onsets=True,
@@ -36,14 +40,14 @@ def build_midi(cropobjects, selected_cropobjects=None,
 
     :returns: A single-track ``midiutil.MidiFile.MIDIFile`` object. It can be
         written to a stream using its ``mf.writeFile()`` method."""
-    _cdict = {c.objid: c for c in cropobjects}
+    _cdict = {c.id: c for c in nodes}
 
     pitch_inference_engine = PitchInferenceEngine()
-    time_inference_engine = OnsetsInferenceEngine(cropobjects=_cdict.values())
+    time_inference_engine = OnsetsInferenceEngine(nodes=nodes)
 
     try:
         logging.info('Running pitch inference.')
-        pitches, pitch_names = pitch_inference_engine.infer_pitches(_cdict.values(),
+        pitches, pitch_names = pitch_inference_engine.infer_pitches(nodes,
                                                                     with_names=True)
     except Exception as e:
         logging.warning('Model: Pitch inference failed!')
@@ -60,7 +64,7 @@ def build_midi(cropobjects, selected_cropobjects=None,
 
     try:
         logging.info('Running durations inference.')
-        durations = time_inference_engine.durations(_cdict.values())
+        durations = time_inference_engine.durations(nodes)
     except Exception as e:
         logging.warning('Model: Duration inference failed!')
         logging.exception(traceback.format_exc(e))
@@ -73,7 +77,7 @@ def build_midi(cropobjects, selected_cropobjects=None,
 
     try:
         logging.info('Running onsets inference.')
-        onsets = time_inference_engine.onsets(_cdict.values())
+        onsets = time_inference_engine.onsets(nodes)
     except Exception as e:
         logging.warning('Model: Onset inference failed!')
         logging.exception(traceback.format_exc(e))
@@ -85,13 +89,13 @@ def build_midi(cropobjects, selected_cropobjects=None,
             c.data['onset_beats'] = onsets[objid]
 
     # Process ties
-    durations, onsets = time_inference_engine.process_ties(_cdict.values(),
+    durations, onsets = time_inference_engine.process_ties(nodes,
                                                            durations, onsets)
 
     # Prepare selection subset
-    if selected_cropobjects is None:
-        selected_cropobjects = _cdict.values()
-    selection_objids = [c.objid for c in selected_cropobjects]
+    if selected_nodes is None:
+        selected_nodes = _cdict.values()
+    selection_objids = [c.objid for c in selected_nodes]
 
     # Build the MIDI data
     midi_builder = MIDIBuilder()
@@ -137,8 +141,8 @@ def main(args):
     logging.info('Starting main...')
     _start_time = time.time()
 
-    cropobjects = parse_cropobject_list(args.input_mung)
-    graph = NotationGraph(cropobjects)
+    nodes = read_nodes_from_file(args.input_mung)
+    graph = NotationGraph(nodes)
 
     ######################################################################
     # export MIDI for each staff separately
@@ -161,23 +165,23 @@ def main(args):
         # Collect all staffs.
         # They are sorted top-down, so that during retrieval, we can easily
         # check for a hit.
-        staffs = sorted([c for c in cropobjects if c.clsname == 'staff'],
+        staffs = sorted([c for c in nodes if c.class_name == 'staff'],
                         key=lambda x: x.top)
 
         # For each staff, collect its noteheads
         noteheads_per_staff = {
-            s.objid: graph.parents(s, classes=_CONST.NOTEHEAD_CLSNAMES)
+            s.id: graph.parents(s, class_filter=constants.InferenceEngineConstants.NOTEHEAD_CLASS_NAMES)
             for s in staffs
         }
 
         for staff_idx, s in enumerate(staffs):
-            noteheads = noteheads_per_staff[s.objid]
+            noteheads = noteheads_per_staff[s.id]
             if len(noteheads) == 0:
                 continue
             logging.info('Processing staff: {0}, noteheads: {1}'
-                         ''.format(s.objid, len(noteheads)))
+                         ''.format(s.id, len(noteheads)))
 
-            mf = build_midi(cropobjects, selected_cropobjects=noteheads)
+            mf = build_midi(nodes, selected_nodes=noteheads)
 
             output_path = _output_base + '.staff-{0}'.format(staff_idx) + '.mid'
             with open(output_path, 'wb') as stream_out:
@@ -191,13 +195,13 @@ def main(args):
             basename = os.path.splitext(os.path.basename(args.input_mung))[0]
             output_path = os.path.join(args.output_dir, basename + '.mid')
 
-        mf = build_midi(cropobjects=cropobjects)
+        mf = build_midi(nodes=nodes)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'wb') as stream_out:
             mf.writeFile(stream_out)
 
     _end_time = time.time()
-    logging.info('mung2midi.py done in {0:.3f} s'.format(_end_time - _start_time))
+    logging.info('mung2midi_builder.py done in {0:.3f} s'.format(_end_time - _start_time))
 
 
 ##############################################################################

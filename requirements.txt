@@ -1,8 +1,11 @@
-pytorch
+torch
 numpy>=1.13.3
-muscima
+mung
 omrdatasettools
 tqdm
 tensorboardX
 torchsummary
 midiutil
+opencv-python
+pyyaml
+scikit-learn

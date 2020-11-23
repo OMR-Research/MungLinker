@@ -3,16 +3,15 @@ import logging
 import os
 import time
 
+import numpy as np
 import torch
 from torch.nn import BCELoss
-import numpy as np
+from torchsummary import summary
 
 from munglinker.data_pool import load_munglinker_data
-from munglinker.losses import FocalLoss
 from munglinker.model import PyTorchNetwork
 from munglinker.training_strategies import PyTorchTrainingStrategy
 from munglinker.utils import build_experiment_name, select_model
-from torchsummary import summary
 
 
 def build_argument_parser():

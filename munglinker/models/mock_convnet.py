@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 import numpy as np
-from muscima.cropobject import CropObject
+from mung.node import Node
 
 from munglinker.models.munglinker_network import MungLinkerNetwork
 
@@ -12,7 +12,7 @@ class MockNetwork(MungLinkerNetwork):
     model is available. Outputs random labels.
     """
 
-    def prepare_patch_and_target(self, mungos_from: List[CropObject], mungos_to: List[CropObject], patches: np.ndarray,
+    def prepare_patch_and_target(self, mungos_from: List[Node], mungos_to: List[Node], patches: np.ndarray,
                                  targets: np.ndarray, target_is_onehot: bool = False):
         pass
 

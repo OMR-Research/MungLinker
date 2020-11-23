@@ -4,8 +4,9 @@ import os
 
 import numpy
 import numpy as np
-from muscima.grammar import DependencyGrammar
-from muscima.io import parse_cropobject_class_list
+from mung.grammar import DependencyGrammar
+from mung.io import parse_node_classes
+from mung2midi.inference import MIDIBuilder
 
 from munglinker.models.base_convnet import BaseConvnet
 from munglinker.models.base_convnet_double_filters import BaseConvnetDoubleFilters
@@ -141,7 +142,6 @@ def targets2classes(targets, threshold=0.5):
 
 def midi_matrix_to_midi(midi_matrix, FPS=20, tempo=120):
     """Returns a midiutils.MidiFile.MIDIFile object."""
-    from muscima.inference import MIDIBuilder
     builder = MIDIBuilder()
     pitches, durations, onsets = builder.midi_matrix_to_pdo(midi_matrix,
                                                             framerate=FPS,
@@ -377,8 +377,8 @@ def show_onset_sequence_predictions(X_var, y_true_var, net, max_items=1):
 
 def load_grammar(filename):
     mungo_classes_file = os.path.splitext(filename)[0] + '.xml'
-    mlclass_dict = {m.name: m for m in parse_cropobject_class_list(mungo_classes_file)}
-    g = DependencyGrammar(grammar_filename=filename, alphabet=list(mlclass_dict.keys()))
+    mlclass_dict = {m.name: m for m in parse_node_classes(mungo_classes_file)}
+    g = DependencyGrammar(grammar_filename=filename, alphabet=set(mlclass_dict.keys()))
     return g
 
 

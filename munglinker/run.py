@@ -19,7 +19,7 @@ from munglinker.batch_iterators import PoolIterator
 from munglinker.data_pool import PairwiseMungoDataPool, load_config
 from munglinker.evaluate_notation_assembly_from_mung import evaluate_result
 from munglinker.model import PyTorchNetwork
-from munglinker.mung2midi import build_midi
+from munglinker.mung2midi_builder import build_midi
 from munglinker.utils import midi_matrix_to_midi
 from munglinker.utils import select_model, config2data_pool_dict, MockNetwork
 import pandas as pd
@@ -265,7 +265,7 @@ if __name__ == '__main__':
         results.append((input_mung_file, precision, recall, f1_score, true_positives, false_positives, false_negatives))
 
         if args.play:
-            mf = build_midi(cropobjects=output_mung.cropobjects)
+            mf = build_midi(nodes=output_mung.cropobjects)
             with open("output.midi", 'wb') as stream_out:
                 mf.writeFile(stream_out)
 
