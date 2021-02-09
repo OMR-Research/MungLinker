@@ -104,7 +104,7 @@ class PairwiseMungoDataPool(Dataset):
             patch = self.load_patch(image_index, mungo_from, mungo_to)
             patches_batch[i_entity] = patch
 
-            mungos_are_connected = mungo_to.objid in mungo_from.outlinks
+            mungos_are_connected = mungo_to.id in mungo_from.outlinks
             if mungos_are_connected:
                 targets[i_entity] = 1
 
