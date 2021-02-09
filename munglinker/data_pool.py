@@ -148,7 +148,7 @@ class PairwiseMungoDataPool(Dataset):
         number_of_samples = 0
         for mung_index, mung in enumerate(tqdm(self.mungs, desc="Loading MuNG-pairs")):
             object_pairs = self.get_all_neighboring_object_pairs(
-                mung.cropobjects,
+                mung.vertices,
                 max_object_distance=self.max_edge_length,
                 grammar=self.grammar)
             for (m_from, m_to) in object_pairs:
