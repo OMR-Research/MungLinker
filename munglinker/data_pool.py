@@ -402,11 +402,11 @@ def __load_munglinker_data(mung_root: str, images_root: str,
         exclude_classes = {}
 
     all_mung_files = glob(mung_root + "/**/*.xml", recursive=True)
-    mung_files_in_this_split = [f for f in all_mung_files if os.path.splitext(os.path.basename(f))[0] in include_names]
+    mung_files_in_this_split = sorted([f for f in all_mung_files if os.path.splitext(os.path.basename(f))[0] in include_names])
 
     all_image_files = glob(images_root + "/**/*.png", recursive=True)
-    image_files_in_this_split = [f for f in all_image_files if
-                                 os.path.splitext(os.path.basename(f))[0] in include_names]
+    image_files_in_this_split = sorted([f for f in all_image_files if
+                                 os.path.splitext(os.path.basename(f))[0] in include_names])
 
     mungs = []
     images = []
