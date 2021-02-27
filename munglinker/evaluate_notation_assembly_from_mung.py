@@ -107,7 +107,7 @@ def evaluate_result(mung_reference_file, predicted_mung_file):
 def sanitize_crop_object_class_names(crop_objects: List[CropObject]):
     for crop_object in crop_objects:
         # Some classes have special characters in their class name that we have to remove
-        crop_object.clsname = crop_object.clsname.replace('"', '').replace('/', '').replace('.', '')
+        crop_object.class_name = crop_object.class_name.replace('"', '').replace('/', '').replace('.', '')
 
 
 def compute_statistics_on_crop_objects(reference_objects, predicted_objects):
