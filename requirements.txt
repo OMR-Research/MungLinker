@@ -9,3 +9,4 @@ midiutil
 opencv-python
 pyyaml
 scikit-learn
+pandas
